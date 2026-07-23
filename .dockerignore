@@ -1,0 +1,12 @@
+.git
+.github
+.next
+.openai
+.agents
+node_modules
+coverage
+.dev-server*
+*.log
+.env*
+Dockerfile*
+README.md
