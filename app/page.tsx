@@ -121,8 +121,8 @@ export default function Home() {
 
               <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300 sm:text-xl">
                 Northstar Ops gives growing teams a calm, repeatable rhythm for
-                choosing what matters, moving work forward, and learning every
-                week.
+                choosing what matters, moving work forward, and celebrating
+                progress every week.
               </p>
 
               <div className="mt-9 flex flex-col items-start gap-5 sm:flex-row sm:items-center">
