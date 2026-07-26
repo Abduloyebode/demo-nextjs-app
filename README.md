@@ -2,7 +2,6 @@
 
 A small, production-ready Next.js landing page built as a junior developer deployment exercise.
 
-cow 
 ## Requirements
 
 - Node.js 24 LTS
