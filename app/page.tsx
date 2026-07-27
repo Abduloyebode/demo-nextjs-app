@@ -1,5 +1,3 @@
-import { WeeklyRhythmCard } from "./components/WeeklyRhythmCard";
-
 const workflowSteps = [
   {
     number: "01",
@@ -18,6 +16,24 @@ const workflowSteps = [
     title: "Review and improve",
     description:
       "Close the loop, capture what changed, and begin the next week with clarity.",
+  },
+] as const;
+
+const weeklyRhythm = [
+  {
+    day: "MON",
+    title: "Align priorities",
+    detail: "Three outcomes, one clear direction",
+  },
+  {
+    day: "MID",
+    title: "Check the signal",
+    detail: "Resolve blockers before they grow",
+  },
+  {
+    day: "FRI",
+    title: "Review and reset",
+    detail: "Carry the learning forward",
   },
 ] as const;
 
@@ -124,10 +140,62 @@ export default function Home() {
             </div>
 
             <aside
-              aria-label="Weekly operating rhythm"
+              aria-label="Example weekly operating rhythm"
               className="relative mx-auto w-full max-w-xl lg:mx-0"
             >
-              <WeeklyRhythmCard />
+              <div
+                aria-hidden="true"
+                className="absolute inset-6 -z-10 rounded-[2rem] bg-teal-300/20 blur-3xl"
+              />
+              <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.07] p-3 shadow-2xl shadow-black/25 backdrop-blur sm:p-4">
+                <div className="rounded-[1.25rem] bg-slate-50 p-5 text-slate-950 sm:p-7">
+                  <div className="flex items-start justify-between gap-5 border-b border-slate-200 pb-5">
+                    <div>
+                      <p className="text-xs font-semibold tracking-[0.16em] text-teal-700 uppercase">
+                        Weekly rhythm
+                      </p>
+                      <h2 className="mt-2 text-xl font-semibold tracking-tight">
+                        The work, at a glance
+                      </h2>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+                      On track
+                    </span>
+                  </div>
+
+                  <ol className="mt-2 divide-y divide-slate-200">
+                    {weeklyRhythm.map((item) => (
+                      <li
+                        key={item.day}
+                        className="grid grid-cols-[3rem_1fr_auto] items-center gap-3 py-4 sm:gap-4"
+                      >
+                        <span className="text-xs font-bold tracking-wider text-slate-400">
+                          {item.day}
+                        </span>
+                        <span>
+                          <span className="block text-sm font-semibold text-slate-900">
+                            {item.title}
+                          </span>
+                          <span className="mt-0.5 block text-xs leading-5 text-slate-500">
+                            {item.detail}
+                          </span>
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className="grid size-7 place-items-center rounded-full bg-teal-100 text-xs font-bold text-teal-800"
+                        >
+                          OK
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+
+                  <p className="mt-2 rounded-xl bg-[#0b1f1e] px-4 py-3 text-sm text-slate-200">
+                    <span className="font-semibold text-white">Next:</span>{" "}
+                    Monday priority check-in
+                  </p>
+                </div>
+              </div>
             </aside>
           </div>
         </section>
