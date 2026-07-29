@@ -21,6 +21,9 @@ pnpm-debug.log*
 
 # environment files
 .env*
+!.env.example
 
 # TypeScript
 *.tsbuildinfo
+
+/app/generated/prisma

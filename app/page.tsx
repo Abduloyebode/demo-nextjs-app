@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const workflowSteps = [
   {
     number: "01",
@@ -75,13 +77,21 @@ export default function Home() {
                 How it works
               </a>
             </li>
+            <li className="hidden sm:block">
+              <Link
+                href="/sign-in"
+                className="rounded-md px-2 py-2 text-slate-300 transition hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+              >
+                Sign in
+              </Link>
+            </li>
             <li>
-              <a
-                href="#how-it-works"
+              <Link
+                href="/sign-up"
                 className="inline-flex min-h-11 items-center rounded-full border border-white/20 bg-white/10 px-4 text-white transition hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-300 sm:px-5"
               >
                 Get started
-              </a>
+              </Link>
             </li>
           </ul>
         </nav>
