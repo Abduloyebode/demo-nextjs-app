@@ -1,4 +1,5 @@
 import type { DocumentStatus } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { UnsupportedPdfError } from "@/lib/pdf";
 import { AiExtractionError } from "@/lib/ai-extraction";
 
@@ -50,6 +51,59 @@ export function classifyProcessingError(
     permanent: false,
     message: "Something went wrong while processing this document.",
   };
+}
+
+export type ClaimResult =
+  | { claimed: true }
+  | { claimed: false; reason: "not_found" | "no_file_data" | DocumentStatus };
+
+/**
+ * Atomically moves a PENDING/PROCESSING document to PROCESSING so that
+ * concurrent or duplicate job runs for the same document id can't both
+ * proceed to the (expensive, non-idempotent) extraction step. Returns
+ * claimed: false if another run already claimed it, if the document is
+ * already finished, or if it can't be found/has no file to process.
+ */
+export async function claimDocumentForProcessing(
+  documentId: string,
+): Promise<ClaimResult> {
+  const existing = await prisma.document.findUnique({
+    where: { id: documentId },
+    select: { status: true, fileData: true },
+  });
+
+  if (!existing) {
+    return { claimed: false, reason: "not_found" };
+  }
+
+  if (isTerminalDocumentStatus(existing.status)) {
+    return { claimed: false, reason: existing.status };
+  }
+
+  if (!existing.fileData) {
+    return { claimed: false, reason: "no_file_data" };
+  }
+
+  // Only PENDING is a valid source state for the claim itself — PROCESSING
+  // must NOT be included here, or a document already claimed by one run
+  // could be "claimed" again by a concurrent run (the update would still
+  // match and report success). Inngest's step memoization means a
+  // successfully-claimed step is never re-run for retries of the *same*
+  // execution, so there's no need to allow re-claiming from PROCESSING.
+  const updated = await prisma.document.updateMany({
+    where: { id: documentId, status: "PENDING" },
+    data: { status: "PROCESSING", errorMessage: null },
+  });
+
+  if (updated.count === 0) {
+    const again = await prisma.document.findUnique({
+      where: { id: documentId },
+      select: { status: true },
+    });
+    return { claimed: false, reason: again?.status ?? "not_found" };
+  }
+
+  return { claimed: true };
 }
 
 export function documentStatusLabel(status: DocumentStatus): string {

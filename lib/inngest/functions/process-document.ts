@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { extractPdfText } from "@/lib/pdf";
 import { extractDocumentInfo } from "@/lib/ai-extraction";
 import {
+  claimDocumentForProcessing,
   classifyProcessingError,
   isTerminalDocumentStatus,
 } from "@/lib/document-job";
@@ -65,62 +66,33 @@ export const processDocument = inngest.createFunction(
     const { documentId } = event.data as ProcessDocumentEvent["data"];
 
     const claimed = await step.run("claim-document", async () => {
-      const existing = await prisma.document.findUnique({
-        where: { id: documentId },
-        select: { id: true, status: true, fileData: true },
-      });
+      const result = await claimDocumentForProcessing(documentId);
 
-      if (!existing) {
-        logger.warn("document missing; skipping", { documentId });
-        throw new NonRetriableError(`Document ${documentId} was not found.`);
-      }
-
-      if (isTerminalDocumentStatus(existing.status)) {
-        logger.info("document already finished; skipping", {
-          documentId,
-          status: existing.status,
-        });
-        return { skip: true as const, reason: existing.status };
-      }
-
-      if (!existing.fileData) {
-        logger.error("document has no file data", { documentId });
-        await markDocumentFailed(
-          documentId,
-          "The uploaded file is no longer available for processing.",
-        );
-        throw new NonRetriableError(
-          `Document ${documentId} has no file data to process.`,
-        );
-      }
-
-      const updated = await prisma.document.updateMany({
-        where: {
-          id: documentId,
-          status: { in: ["PENDING", "PROCESSING"] },
-        },
-        data: {
-          status: "PROCESSING",
-          errorMessage: null,
-        },
-      });
-
-      if (updated.count === 0) {
-        const again = await prisma.document.findUnique({
-          where: { id: documentId },
-          select: { status: true },
-        });
+      if (!result.claimed) {
+        if (result.reason === "not_found") {
+          logger.warn("document missing; skipping", { documentId });
+          throw new NonRetriableError(`Document ${documentId} was not found.`);
+        }
+        if (result.reason === "no_file_data") {
+          logger.error("document has no file data", { documentId });
+          await markDocumentFailed(
+            documentId,
+            "The uploaded file is no longer available for processing.",
+          );
+          throw new NonRetriableError(
+            `Document ${documentId} has no file data to process.`,
+          );
+        }
         logger.info("could not claim document; skipping", {
           documentId,
-          status: again?.status,
+          status: result.reason,
         });
-        return { skip: true as const, reason: again?.status ?? "unknown" };
       }
 
-      return { skip: false as const };
+      return result;
     });
 
-    if (claimed.skip) {
+    if (!claimed.claimed) {
       return { documentId, skipped: true, reason: claimed.reason };
     }
 
