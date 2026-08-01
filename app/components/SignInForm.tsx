@@ -69,20 +69,12 @@ export function SignInForm() {
       </div>
 
       <div>
-        <div className="flex items-center justify-between">
-          <label
-            htmlFor="password"
-            className="block text-sm font-medium text-slate-700"
-          >
-            Password
-          </label>
-          <Link
-            href="/forgot-password"
-            className="text-sm font-medium text-teal-700 underline decoration-teal-200 underline-offset-4 hover:text-teal-800"
-          >
-            Forgot password?
-          </Link>
-        </div>
+        <label
+          htmlFor="password"
+          className="block text-sm font-medium text-slate-700"
+        >
+          Password
+        </label>
         <input
           id="password"
           name="password"
@@ -94,6 +86,14 @@ export function SignInForm() {
           className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-400 focus:ring-2 focus:ring-teal-200"
           placeholder="Your password"
         />
+        <p className="mt-1.5 text-right">
+          <Link
+            href="/forgot-password"
+            className="text-sm font-medium text-teal-700 underline decoration-teal-200 underline-offset-4 hover:text-teal-800"
+          >
+            Forgot password?
+          </Link>
+        </p>
       </div>
 
       <button
