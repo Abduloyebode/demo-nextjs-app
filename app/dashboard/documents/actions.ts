@@ -3,9 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUserId } from "@/lib/require-user-id";
-import { extractPdfText, UnsupportedPdfError } from "@/lib/pdf";
-import { extractDocumentInfo, AiExtractionError } from "@/lib/ai-extraction";
 import { MAX_PDF_SIZE_BYTES } from "@/lib/document-validation";
+import {
+  DOCUMENT_PROCESS_EVENT,
+  inngest,
+} from "@/lib/inngest/client";
 
 export type DocumentActionResult = { error: string | null };
 
@@ -40,34 +42,31 @@ export async function uploadDocument(
       ownerId: userId,
       fileName: file.name.slice(0, 255),
       fileSize: file.size,
-      status: "PROCESSING",
+      fileData: buffer,
+      status: "PENDING",
     },
   });
 
   try {
-    const text = await extractPdfText(buffer);
-    const result = await extractDocumentInfo(text);
+    await inngest.send({
+      name: DOCUMENT_PROCESS_EVENT,
+      data: { documentId: document.id },
+      // Extra guard against duplicate sends for the same document id.
+      id: `document-process-${document.id}`,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Could not queue document processing.";
 
     await prisma.document.update({
       where: { id: document.id },
       data: {
-        status: "COMPLETED",
-        title: result.title,
-        summary: result.summary,
-        importantDates: result.importantDates,
-        obligations: result.obligations,
-        riskLevel: result.riskLevel,
+        status: "FAILED",
+        errorMessage: message,
+        fileData: null,
       },
-    });
-  } catch (error) {
-    const message =
-      error instanceof UnsupportedPdfError || error instanceof AiExtractionError
-        ? error.message
-        : "Something went wrong while processing this document.";
-
-    await prisma.document.update({
-      where: { id: document.id },
-      data: { status: "FAILED", errorMessage: message },
     });
 
     revalidatePath("/dashboard/documents");

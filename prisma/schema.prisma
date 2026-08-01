@@ -92,6 +92,7 @@ model Workflow {
 }
 
 enum DocumentStatus {
+  PENDING
   PROCESSING
   COMPLETED
   FAILED
@@ -109,7 +110,9 @@ model Document {
   owner        User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   fileName     String
   fileSize     Int
-  status       DocumentStatus     @default(PROCESSING)
+  /// Raw PDF bytes kept until background extraction finishes (then cleared).
+  fileData     Bytes?
+  status       DocumentStatus     @default(PENDING)
   title        String?
   summary      String?
   importantDates Json?

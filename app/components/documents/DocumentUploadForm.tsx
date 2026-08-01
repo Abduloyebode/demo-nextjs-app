@@ -1,9 +1,11 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition, type FormEvent } from "react";
 import { uploadDocument } from "@/app/dashboard/documents/actions";
 
 export function DocumentUploadForm() {
+  const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -20,6 +22,7 @@ export function DocumentUploadForm() {
         return;
       }
       formRef.current?.reset();
+      router.refresh();
     });
   }
 
@@ -31,8 +34,8 @@ export function DocumentUploadForm() {
     >
       <h3 className="text-sm font-semibold text-slate-900">Upload a document</h3>
       <p className="mt-1 text-sm text-slate-500">
-        PDF only, up to 10 MB. The AI extracts a title, summary, important
-        dates, obligations, and a risk level.
+        PDF only, up to 10 MB. Upload returns immediately; extraction runs in
+        the background (title, summary, dates, obligations, risk).
       </p>
 
       {error ? (
@@ -57,7 +60,7 @@ export function DocumentUploadForm() {
           disabled={isPending}
           className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-full bg-teal-700 px-5 text-sm font-semibold text-white transition hover:bg-teal-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isPending ? "Processing…" : "Upload"}
+          {isPending ? "Uploading…" : "Upload"}
         </button>
       </div>
     </form>

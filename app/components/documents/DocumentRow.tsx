@@ -1,15 +1,20 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { Document } from "@prisma/client";
 import { deleteDocument } from "@/app/dashboard/documents/actions";
 import {
   documentRiskLevelLabels,
   type documentRiskLevelValues,
 } from "@/lib/document-validation";
 import { asStringArray } from "@/lib/document-json";
+import {
+  documentStatusLabel,
+  isInFlightDocumentStatus,
+} from "@/lib/document-job";
+import type { DocumentListItem } from "@/lib/documents";
 
-const statusBadgeClass: Record<Document["status"], string> = {
+const statusBadgeClass: Record<DocumentListItem["status"], string> = {
+  PENDING: "bg-slate-200 text-slate-700",
   PROCESSING: "bg-amber-100 text-amber-900",
   COMPLETED: "bg-emerald-100 text-emerald-800",
   FAILED: "bg-rose-100 text-rose-800",
@@ -21,7 +26,7 @@ const riskBadgeClass: Record<(typeof documentRiskLevelValues)[number], string> =
   HIGH: "bg-rose-100 text-rose-800",
 };
 
-export function DocumentRow({ document }: { document: Document }) {
+export function DocumentRow({ document }: { document: DocumentListItem }) {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, startDeleteTransition] = useTransition();
 
@@ -52,11 +57,7 @@ export function DocumentRow({ document }: { document: Document }) {
             <span
               className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusBadgeClass[document.status]}`}
             >
-              {document.status === "PROCESSING"
-                ? "Processing"
-                : document.status === "COMPLETED"
-                  ? "Completed"
-                  : "Failed"}
+              {documentStatusLabel(document.status)}
             </span>
             {document.riskLevel ? (
               <span
@@ -67,6 +68,12 @@ export function DocumentRow({ document }: { document: Document }) {
             ) : null}
           </div>
           <p className="mt-1 text-xs text-slate-400">{document.fileName}</p>
+          {isInFlightDocumentStatus(document.status) ? (
+            <p className="mt-2 text-sm text-slate-500">
+              Extraction is running in the background. This list updates
+              automatically.
+            </p>
+          ) : null}
         </div>
 
         <button

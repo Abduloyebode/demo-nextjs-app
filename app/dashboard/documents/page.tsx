@@ -3,7 +3,9 @@ import Link from "next/link";
 import { SignOutButton } from "@/app/components/SignOutButton";
 import { DocumentUploadForm } from "@/app/components/documents/DocumentUploadForm";
 import { DocumentRow } from "@/app/components/documents/DocumentRow";
+import { DocumentsAutoRefresh } from "@/app/components/documents/DocumentsAutoRefresh";
 import { requireUserId } from "@/lib/require-user-id";
+import { isInFlightDocumentStatus } from "@/lib/document-job";
 import { listDocuments } from "@/lib/documents";
 
 export const metadata: Metadata = {
@@ -13,9 +15,13 @@ export const metadata: Metadata = {
 export default async function DocumentsPage() {
   const userId = await requireUserId();
   const documents = await listDocuments(userId);
+  const hasInFlight = documents.some((document) =>
+    isInFlightDocumentStatus(document.status),
+  );
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <DocumentsAutoRefresh active={hasInFlight} />
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-10">
           <Link
