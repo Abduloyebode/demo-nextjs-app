@@ -1,43 +1,43 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { authClient } from "@/lib/auth-client";
-import { signInSchema } from "@/lib/auth-validation";
+import { forgotPasswordSchema } from "@/lib/auth-validation";
 
-export function SignInForm() {
-  const router = useRouter();
+export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
 
-    const parsed = signInSchema.safeParse({ email, password });
+    const parsed = forgotPasswordSchema.safeParse({ email });
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Check your details and try again.");
+      setError(parsed.error.issues[0]?.message ?? "Enter a valid email address.");
       return;
     }
 
     setPending(true);
-    const { error: signInError } = await authClient.signIn.email({
+    await authClient.requestPasswordReset({
       email: parsed.data.email,
-      password: parsed.data.password,
-      callbackURL: "/dashboard",
+      redirectTo: "/reset-password",
     });
     setPending(false);
+    // Always show the same confirmation, whether or not the email exists,
+    // so this can't be used to check which emails have accounts.
+    setSubmitted(true);
+  }
 
-    if (signInError) {
-      setError(signInError.message || "Invalid email or password.");
-      return;
-    }
-
-    router.push("/dashboard");
-    router.refresh();
+  if (submitted) {
+    return (
+      <p className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-800">
+        If an account exists for that email, a reset link is on its way.
+      </p>
+    );
   }
 
   return (
@@ -68,49 +68,20 @@ export function SignInForm() {
         />
       </div>
 
-      <div>
-        <div className="flex items-center justify-between">
-          <label
-            htmlFor="password"
-            className="block text-sm font-medium text-slate-700"
-          >
-            Password
-          </label>
-          <Link
-            href="/forgot-password"
-            className="text-sm font-medium text-teal-700 underline decoration-teal-200 underline-offset-4 hover:text-teal-800"
-          >
-            Forgot password?
-          </Link>
-        </div>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-400 focus:ring-2 focus:ring-teal-200"
-          placeholder="Your password"
-        />
-      </div>
-
       <button
         type="submit"
         disabled={pending}
         className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-teal-700 px-5 text-sm font-semibold text-white transition hover:bg-teal-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {pending ? "Signing in…" : "Sign in"}
+        {pending ? "Sending…" : "Send reset link"}
       </button>
 
       <p className="text-center text-sm text-slate-600">
-        New here?{" "}
         <Link
-          href="/sign-up"
+          href="/sign-in"
           className="font-medium text-teal-700 underline decoration-teal-200 underline-offset-4 hover:text-teal-800"
         >
-          Create an account
+          Back to sign in
         </Link>
       </p>
     </form>
