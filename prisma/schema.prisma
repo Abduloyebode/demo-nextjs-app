@@ -20,6 +20,7 @@ model User {
   sessions      Session[]
   accounts      Account[]
   workflows     Workflow[]
+  documents     Document[]
 
   @@unique([email])
   @@map("user")
@@ -88,4 +89,36 @@ model Workflow {
 
   @@index([ownerId])
   @@map("workflow")
+}
+
+enum DocumentStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum DocumentRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model Document {
+  id           String             @id @default(cuid())
+  ownerId      String
+  owner        User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  fileName     String
+  fileSize     Int
+  status       DocumentStatus     @default(PROCESSING)
+  title        String?
+  summary      String?
+  importantDates Json?
+  obligations  Json?
+  riskLevel    DocumentRiskLevel?
+  errorMessage String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([ownerId])
+  @@map("document")
 }
