@@ -83,7 +83,22 @@ export default async function DashboardPage({
           <span className="font-medium text-slate-800">{session.user.email}</span>.
         </p>
 
-        <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <nav className="mt-8 flex gap-5 border-b border-slate-200 text-sm font-medium">
+          <Link
+            href="/dashboard"
+            className="border-b-2 border-teal-700 py-3 text-teal-700"
+          >
+            Workflows
+          </Link>
+          <Link
+            href="/dashboard/documents"
+            className="border-b-2 border-transparent py-3 text-slate-500 hover:text-slate-800"
+          >
+            Documents
+          </Link>
+        </nav>
+
+        <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <form className="flex flex-wrap items-end gap-3" role="search">
             <div>
               <label

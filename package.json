@@ -23,9 +23,11 @@
     "better-auth": "^1.6.25",
     "dotenv": "^17.4.2",
     "next": "16.2.11",
+    "openai": "^7.3.0",
     "pg": "^8.22.0",
     "react": "19.2.7",
     "react-dom": "19.2.7",
+    "unpdf": "^1.8.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

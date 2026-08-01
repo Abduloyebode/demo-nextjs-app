@@ -1,19 +1,9 @@
 "use server";
 
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { requireUserId } from "@/lib/require-user-id";
 import { workflowSchema } from "@/lib/workflow-validation";
-
-async function requireUserId() {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
-    redirect("/sign-in");
-  }
-  return session.user.id;
-}
 
 export type WorkflowActionResult = { error: string | null };
 
