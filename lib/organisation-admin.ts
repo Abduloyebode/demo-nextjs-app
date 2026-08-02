@@ -158,16 +158,31 @@ export async function removeMember(
     return { error: "You cannot remove yourself." };
   }
 
-  if (target.role === "ADMIN") {
-    const adminCount = await prisma.membership.count({
-      where: { organisationId: ctx.organisationId, role: "ADMIN" },
-    });
-    if (adminCount <= 1) {
-      return { error: "You cannot remove the last admin." };
+  const result = await prisma.$transaction(async (tx) => {
+    if (target.role === "ADMIN") {
+      // Lock every admin row in this org before counting, so a concurrent
+      // removeMember/changeMemberRole call targeting a *different* admin
+      // has to wait for this transaction to commit (and see the updated
+      // count) instead of reading the same stale "2 admins" snapshot —
+      // otherwise two concurrent removals can each pass this check and
+      // leave the organisation with zero admins.
+      const admins = await tx.$queryRaw<{ id: string }[]>`
+        SELECT id FROM membership
+        WHERE "organisationId" = ${ctx.organisationId} AND role = 'ADMIN'::"MembershipRole"
+        FOR UPDATE
+      `;
+      if (admins.length <= 1) {
+        return { error: "You cannot remove the last admin." };
+      }
     }
-  }
 
-  await prisma.membership.delete({ where: { id: target.id } });
+    await tx.membership.delete({ where: { id: target.id } });
+    return { error: null };
+  });
+
+  if (result.error) {
+    return result;
+  }
 
   await writeAuditLog({
     organisationId: ctx.organisationId,
@@ -202,27 +217,45 @@ export async function changeMemberRole(
     return { error: "That member could not be found." };
   }
 
-  if (target.role === "ADMIN" && role === "MEMBER") {
-    const adminCount = await prisma.membership.count({
-      where: { organisationId: ctx.organisationId, role: "ADMIN" },
-    });
-    if (adminCount <= 1) {
-      return { error: "You cannot demote the last admin." };
+  const result = await prisma.$transaction(async (tx) => {
+    // Order matches the original checks exactly: last-admin guard first,
+    // then self-demote, then no-op — only the error precedence for a solo
+    // admin demoting themselves ("last admin", not "yourself") depends on it.
+    if (target.role === "ADMIN" && role === "MEMBER") {
+      // Lock all admin rows in this org before counting, same pattern as
+      // removeMember: a concurrent demote/remove of another admin has to
+      // wait for this transaction to commit instead of reading the same
+      // stale "2 admins" snapshot, which could otherwise let two
+      // concurrent calls both pass this check and zero out the admins.
+      const admins = await tx.$queryRaw<{ id: string }[]>`
+        SELECT id FROM membership
+        WHERE "organisationId" = ${ctx.organisationId} AND role = 'ADMIN'::"MembershipRole"
+        FOR UPDATE
+      `;
+      if (admins.length <= 1) {
+        return { error: "You cannot demote the last admin.", updated: false };
+      }
     }
+
+    if (target.userId === ctx.userId && role !== "ADMIN") {
+      return { error: "You cannot demote yourself.", updated: false };
+    }
+
+    if (target.role === role) {
+      return { error: null, updated: false };
+    }
+
+    await tx.membership.update({ where: { id: target.id }, data: { role } });
+    return { error: null, updated: true };
+  });
+
+  if (result.error) {
+    return { error: result.error };
   }
 
-  if (target.userId === ctx.userId && role !== "ADMIN") {
-    return { error: "You cannot demote yourself." };
-  }
-
-  if (target.role === role) {
+  if (!result.updated) {
     return { error: null };
   }
-
-  await prisma.membership.update({
-    where: { id: target.id },
-    data: { role },
-  });
 
   await writeAuditLog({
     organisationId: ctx.organisationId,
