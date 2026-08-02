@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireUserId } from "@/lib/require-user-id";
+import { requireOrganisationMembership } from "@/lib/organisation";
 import { MAX_PDF_SIZE_BYTES } from "@/lib/document-validation";
 import {
   DOCUMENT_PROCESS_EVENT,
@@ -20,7 +20,7 @@ function looksLikePdf(buffer: Buffer): boolean {
 export async function uploadDocument(
   formData: FormData,
 ): Promise<DocumentActionResult> {
-  const userId = await requireUserId();
+  const { userId, organisationId } = await requireOrganisationMembership();
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
@@ -40,6 +40,7 @@ export async function uploadDocument(
   const document = await prisma.document.create({
     data: {
       ownerId: userId,
+      organisationId,
       fileName: file.name.slice(0, 255),
       fileSize: file.size,
       fileData: buffer,
@@ -51,7 +52,6 @@ export async function uploadDocument(
     await inngest.send({
       name: DOCUMENT_PROCESS_EVENT,
       data: { documentId: document.id },
-      // Extra guard against duplicate sends for the same document id.
       id: `document-process-${document.id}`,
     });
   } catch (error) {
@@ -78,10 +78,10 @@ export async function uploadDocument(
 }
 
 export async function deleteDocument(id: string): Promise<DocumentActionResult> {
-  const userId = await requireUserId();
+  const { organisationId } = await requireOrganisationMembership();
 
   const result = await prisma.document.deleteMany({
-    where: { id, ownerId: userId },
+    where: { id, organisationId },
   });
 
   if (result.count === 0) {

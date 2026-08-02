@@ -1,15 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { authClient } from "@/lib/auth-client";
 import { signUpSchema } from "@/lib/auth-validation";
+import { acceptOrganisationInvite } from "@/app/dashboard/organisation/actions";
 
 export function SignUpForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get("invite");
+  const inviteEmail = searchParams.get("email") ?? "";
+
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(inviteEmail);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -25,19 +30,34 @@ export function SignUpForm() {
     }
 
     setPending(true);
+    // Navigate ourselves after optional invite accept — avoid better-auth
+    // callbackURL racing ahead of membership creation.
     const { error: signUpError } = await authClient.signUp.email({
       name: parsed.data.name,
       email: parsed.data.email,
       password: parsed.data.password,
-      callbackURL: "/dashboard",
     });
-    setPending(false);
 
     if (signUpError) {
+      setPending(false);
       setError(signUpError.message || "Could not create your account.");
       return;
     }
 
+    if (inviteToken) {
+      const acceptResult = await acceptOrganisationInvite(inviteToken);
+      setPending(false);
+      if (acceptResult.error) {
+        setError(acceptResult.error);
+        router.push(`/invite/${inviteToken}`);
+        return;
+      }
+      router.push("/dashboard");
+      router.refresh();
+      return;
+    }
+
+    setPending(false);
     router.push("/dashboard");
     router.refresh();
   }
@@ -50,6 +70,12 @@ export function SignUpForm() {
           className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800"
         >
           {error}
+        </p>
+      ) : null}
+
+      {inviteToken ? (
+        <p className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-900">
+          You&apos;re signing up to accept an organisation invite.
         </p>
       ) : null}
 
@@ -119,7 +145,11 @@ export function SignUpForm() {
       <p className="text-center text-sm text-slate-600">
         Already have an account?{" "}
         <Link
-          href="/sign-in"
+          href={
+            inviteToken
+              ? `/sign-in?invite=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(email)}`
+              : "/sign-in"
+          }
           className="font-medium text-teal-700 underline decoration-teal-200 underline-offset-4 hover:text-teal-800"
         >
           Sign in
