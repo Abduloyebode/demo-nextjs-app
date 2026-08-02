@@ -2,8 +2,8 @@ import { NonRetriableError } from "inngest";
 import { prisma } from "@/lib/prisma";
 import { extractPdfText } from "@/lib/pdf";
 import { extractDocumentInfo } from "@/lib/ai-extraction";
+import { claimDocumentForProcessing } from "@/lib/document-job-claim";
 import {
-  claimDocumentForProcessing,
   classifyProcessingError,
   isTerminalDocumentStatus,
 } from "@/lib/document-job";

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "./prisma";
-import { claimDocumentForProcessing } from "./document-job";
+import { claimDocumentForProcessing } from "./document-job-claim";
 
 // Integration test: exercises the real Postgres database, same as
 // lib/workflows.test.ts. Covers the atomic claim that prevents the same
