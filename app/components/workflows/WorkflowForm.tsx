@@ -14,6 +14,9 @@ type WorkflowFormValues = {
   status: WorkflowStatus;
 };
 
+const fieldClass =
+  "mt-1.5 w-full rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--teal)] focus:ring-2 focus:ring-[var(--teal-soft)]";
+
 export function WorkflowForm({
   initialValues,
   submitLabel,
@@ -52,14 +55,14 @@ export function WorkflowForm({
       {error ? (
         <p
           role="alert"
-          className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800"
+          className="rounded-[10px] border border-[var(--rose)]/25 bg-[var(--rose-soft)] px-3 py-2 text-sm text-[var(--rose)]"
         >
           {error}
         </p>
       ) : null}
 
       <div>
-        <label htmlFor="name" className="block text-sm font-medium text-slate-700">
+        <label htmlFor="name" className="block text-sm font-medium text-[var(--ink-soft)]">
           Name
         </label>
         <input
@@ -69,7 +72,7 @@ export function WorkflowForm({
           required
           maxLength={120}
           defaultValue={initialValues?.name}
-          className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-400 focus:ring-2 focus:ring-teal-200"
+          className={fieldClass}
           placeholder="Ship the onboarding redesign"
         />
       </div>
@@ -77,7 +80,7 @@ export function WorkflowForm({
       <div>
         <label
           htmlFor="description"
-          className="block text-sm font-medium text-slate-700"
+          className="block text-sm font-medium text-[var(--ink-soft)]"
         >
           Description
         </label>
@@ -87,20 +90,20 @@ export function WorkflowForm({
           rows={3}
           maxLength={2000}
           defaultValue={initialValues?.description}
-          className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-400 focus:ring-2 focus:ring-teal-200"
+          className={fieldClass}
           placeholder="Optional details"
         />
       </div>
 
       <div>
-        <label htmlFor="status" className="block text-sm font-medium text-slate-700">
+        <label htmlFor="status" className="block text-sm font-medium text-[var(--ink-soft)]">
           Status
         </label>
         <select
           id="status"
           name="status"
           defaultValue={initialValues?.status ?? "NOT_STARTED"}
-          className="mt-1.5 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-200"
+          className={fieldClass}
         >
           {workflowStatusValues.map((value) => (
             <option key={value} value={value}>
@@ -110,11 +113,11 @@ export function WorkflowForm({
         </select>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button
           type="submit"
           disabled={isPending}
-          className="inline-flex min-h-10 items-center justify-center rounded-full bg-teal-700 px-5 text-sm font-semibold text-white transition hover:bg-teal-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex min-h-10 items-center justify-center rounded-full bg-[var(--teal)] px-5 text-sm font-semibold text-white transition hover:bg-[var(--teal-bright)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--teal)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isPending ? pendingLabel : submitLabel}
         </button>
@@ -123,7 +126,7 @@ export function WorkflowForm({
             type="button"
             onClick={onCancel}
             disabled={isPending}
-            className="inline-flex min-h-10 items-center justify-center rounded-full border border-slate-200 bg-white px-5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-10 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)] px-5 text-sm font-medium text-[var(--ink-soft)] transition hover:bg-[var(--paper)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--teal)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             Cancel
           </button>

@@ -1,6 +1,19 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import { Fraunces, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-fraunces",
+  display: "swap",
+});
+
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-plus-jakarta",
+  display: "swap",
+});
 
 const description =
   "A calm, repeatable operating rhythm that helps growing teams turn priorities into progress.";
@@ -58,8 +71,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" className={`${fraunces.variable} ${plusJakarta.variable}`}>
+      <body
+        className="antialiased"
+        style={
+          {
+            "--font-display": "var(--font-fraunces), Georgia, serif",
+            "--font-body":
+              "var(--font-plus-jakarta), 'Avenir Next', 'Segoe UI', sans-serif",
+            fontFamily: "var(--font-body)",
+          } as React.CSSProperties
+        }
+      >
+        {children}
+      </body>
     </html>
   );
 }

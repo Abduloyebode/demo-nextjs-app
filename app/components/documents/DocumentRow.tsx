@@ -12,18 +12,25 @@ import {
   isInFlightDocumentStatus,
 } from "@/lib/document-job";
 import type { DocumentListItem } from "@/lib/documents";
+import { StatusChip } from "@/app/components/ui/StatusChip";
 
-const statusBadgeClass: Record<DocumentListItem["status"], string> = {
-  PENDING: "bg-slate-200 text-slate-700",
-  PROCESSING: "bg-amber-100 text-amber-900",
-  COMPLETED: "bg-emerald-100 text-emerald-800",
-  FAILED: "bg-rose-100 text-rose-800",
+const statusTone: Record<
+  DocumentListItem["status"],
+  "neutral" | "amber" | "emerald" | "rose"
+> = {
+  PENDING: "neutral",
+  PROCESSING: "amber",
+  COMPLETED: "emerald",
+  FAILED: "rose",
 };
 
-const riskBadgeClass: Record<(typeof documentRiskLevelValues)[number], string> = {
-  LOW: "bg-slate-200 text-slate-700",
-  MEDIUM: "bg-amber-100 text-amber-900",
-  HIGH: "bg-rose-100 text-rose-800",
+const riskTone: Record<
+  (typeof documentRiskLevelValues)[number],
+  "neutral" | "amber" | "rose"
+> = {
+  LOW: "neutral",
+  MEDIUM: "amber",
+  HIGH: "rose",
 };
 
 export function DocumentRow({ document }: { document: DocumentListItem }) {
@@ -45,34 +52,47 @@ export function DocumentRow({ document }: { document: DocumentListItem }) {
 
   const importantDates = asStringArray(document.importantDates);
   const obligations = asStringArray(document.obligations);
+  const inFlight = isInFlightDocumentStatus(document.status);
 
   return (
-    <li className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/40">
-      <div className="flex items-start justify-between gap-4">
+    <li className="rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-panel)]">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold text-slate-900">
+            <h3 className="text-[0.9375rem] font-semibold text-[var(--ink)]">
               {document.title ?? document.fileName}
             </h3>
-            <span
-              className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusBadgeClass[document.status]}`}
-            >
+            <StatusChip tone={statusTone[document.status]}>
               {documentStatusLabel(document.status)}
-            </span>
+            </StatusChip>
             {document.riskLevel ? (
-              <span
-                className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${riskBadgeClass[document.riskLevel]}`}
-              >
+              <StatusChip tone={riskTone[document.riskLevel]}>
                 {documentRiskLevelLabels[document.riskLevel]}
-              </span>
+              </StatusChip>
             ) : null}
           </div>
-          <p className="mt-1 text-xs text-slate-400">{document.fileName}</p>
-          {isInFlightDocumentStatus(document.status) ? (
-            <p className="mt-2 text-sm text-slate-500">
-              Extraction is running in the background. This list updates
-              automatically.
-            </p>
+          <p className="mt-1 text-xs text-[var(--muted)]">{document.fileName}</p>
+
+          {inFlight ? (
+            <div
+              className="mt-3 rounded-[10px] border border-[var(--amber)]/15 bg-[var(--amber-soft)] px-3 py-2"
+              aria-live="polite"
+            >
+              <p className="text-sm font-medium text-[var(--amber)]">
+                {document.status === "PENDING"
+                  ? "Queued for extraction"
+                  : "Extracting structured details"}
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--amber)]/90">
+                This row updates automatically when processing finishes.
+              </p>
+              <div
+                className="mt-2 h-1 overflow-hidden rounded-full bg-[var(--amber)]/15"
+                aria-hidden="true"
+              >
+                <div className="h-full w-1/3 animate-pulse rounded-full bg-[var(--amber)]/70" />
+              </div>
+            </div>
           ) : null}
         </div>
 
@@ -80,54 +100,66 @@ export function DocumentRow({ document }: { document: DocumentListItem }) {
           type="button"
           onClick={onDelete}
           disabled={isDeleting}
-          className="inline-flex min-h-9 shrink-0 items-center rounded-full border border-rose-200 bg-white px-3.5 text-xs font-medium text-rose-700 transition hover:border-rose-300 hover:bg-rose-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex min-h-9 shrink-0 items-center rounded-full border border-[var(--rose)]/25 bg-[var(--surface)] px-3.5 text-xs font-medium text-[var(--rose)] transition hover:bg-[var(--rose-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--rose)] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isDeleting ? "Deleting…" : "Delete"}
         </button>
       </div>
 
       {document.status === "FAILED" && document.errorMessage ? (
-        <p role="alert" className="mt-3 text-sm text-rose-700">
+        <p
+          role="alert"
+          className="mt-4 rounded-[10px] border border-[var(--rose)]/25 bg-[var(--rose-soft)] px-3 py-2 text-sm text-[var(--rose)]"
+        >
           {document.errorMessage}
         </p>
       ) : null}
 
       {document.status === "COMPLETED" ? (
-        <div className="mt-3 space-y-3">
+        <div className="mt-4 space-y-4 border-t border-[var(--line)] pt-4">
           {document.summary ? (
-            <p className="text-sm leading-6 text-slate-600">{document.summary}</p>
-          ) : null}
-
-          {importantDates.length > 0 ? (
             <div>
-              <p className="text-xs font-semibold tracking-[0.1em] text-slate-500 uppercase">
-                Important dates
+              <p className="text-xs font-semibold tracking-[0.08em] text-[var(--muted)] uppercase">
+                Summary
               </p>
-              <ul className="mt-1 list-inside list-disc text-sm text-slate-700">
-                {importantDates.map((date, index) => (
-                  <li key={index}>{date}</li>
-                ))}
-              </ul>
+              <p className="mt-1.5 text-sm leading-6 text-[var(--ink-soft)]">
+                {document.summary}
+              </p>
             </div>
           ) : null}
 
-          {obligations.length > 0 ? (
-            <div>
-              <p className="text-xs font-semibold tracking-[0.1em] text-slate-500 uppercase">
-                Obligations / action items
-              </p>
-              <ul className="mt-1 list-inside list-disc text-sm text-slate-700">
-                {obligations.map((item, index) => (
-                  <li key={index}>{item}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {importantDates.length > 0 ? (
+              <div>
+                <p className="text-xs font-semibold tracking-[0.08em] text-[var(--muted)] uppercase">
+                  Important dates
+                </p>
+                <ul className="mt-1.5 list-inside list-disc space-y-1 text-sm text-[var(--ink-soft)]">
+                  {importantDates.map((date, index) => (
+                    <li key={index}>{date}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {obligations.length > 0 ? (
+              <div>
+                <p className="text-xs font-semibold tracking-[0.08em] text-[var(--muted)] uppercase">
+                  Obligations
+                </p>
+                <ul className="mt-1.5 list-inside list-disc space-y-1 text-sm text-[var(--ink-soft)]">
+                  {obligations.map((item, index) => (
+                    <li key={index}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
       {deleteError ? (
-        <p role="alert" className="mt-3 text-sm text-rose-700">
+        <p role="alert" className="mt-3 text-sm text-[var(--rose)]">
           {deleteError}
         </p>
       ) : null}
