@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { SignOutButton } from "@/app/components/SignOutButton";
+import { DashboardShell } from "@/app/components/DashboardShell";
 import { DocumentUploadForm } from "@/app/components/documents/DocumentUploadForm";
 import { DocumentRow } from "@/app/components/documents/DocumentRow";
 import { DocumentsAutoRefresh } from "@/app/components/documents/DocumentsAutoRefresh";
-import { requireUserId } from "@/lib/require-user-id";
+import { requireOrganisationMembership } from "@/lib/organisation";
 import { isInFlightDocumentStatus } from "@/lib/document-job";
 import { listDocuments } from "@/lib/documents";
 
@@ -13,52 +12,17 @@ export const metadata: Metadata = {
 };
 
 export default async function DocumentsPage() {
-  const userId = await requireUserId();
-  const documents = await listDocuments(userId);
+  const { organisationId } = await requireOrganisationMembership();
+  const documents = await listDocuments(organisationId);
   const hasInFlight = documents.some((document) =>
     isInFlightDocumentStatus(document.status),
   );
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <>
       <DocumentsAutoRefresh active={hasInFlight} />
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8 lg:px-10">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-3 rounded-md text-slate-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-          >
-            <span
-              aria-hidden="true"
-              className="grid size-9 place-items-center rounded-xl bg-teal-300 text-sm font-black text-slate-950"
-            >
-              N
-            </span>
-            <span className="font-semibold tracking-tight">Northstar Ops</span>
-          </Link>
-          <SignOutButton />
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl px-5 py-14 sm:px-8 lg:px-10">
-        <nav className="flex gap-5 border-b border-slate-200 text-sm font-medium">
-          <Link
-            href="/dashboard"
-            className="border-b-2 border-transparent py-3 text-slate-500 hover:text-slate-800"
-          >
-            Workflows
-          </Link>
-          <Link
-            href="/dashboard/documents"
-            className="border-b-2 border-teal-700 py-3 text-teal-700"
-          >
-            Documents
-          </Link>
-        </nav>
-
-        <div className="mt-8">
-          <DocumentUploadForm />
-        </div>
+      <DashboardShell active="documents">
+        <DocumentUploadForm />
 
         <div className="mt-8">
           {documents.length === 0 ? (
@@ -78,7 +42,7 @@ export default async function DocumentsPage() {
             </ul>
           )}
         </div>
-      </main>
-    </div>
+      </DashboardShell>
+    </>
   );
 }

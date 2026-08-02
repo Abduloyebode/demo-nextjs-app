@@ -10,6 +10,7 @@ import { claimDocumentForProcessing } from "./document-job-claim";
 
 describe("claimDocumentForProcessing", () => {
   let userId: string;
+  let organisationId: string;
 
   beforeAll(async () => {
     const user = await prisma.user.create({
@@ -21,10 +22,22 @@ describe("claimDocumentForProcessing", () => {
       },
     });
     userId = user.id;
+
+    const organisation = await prisma.organisation.create({
+      data: {
+        name: "Document Job Org",
+        slug: `document-job-${randomUUID().slice(0, 8)}`,
+        memberships: { create: { userId, role: "ADMIN" } },
+      },
+    });
+    organisationId = organisation.id;
   });
 
   afterAll(async () => {
-    await prisma.user.delete({ where: { id: userId } });
+    if (organisationId) {
+      await prisma.organisation.delete({ where: { id: organisationId } });
+    }
+    if (userId) await prisma.user.delete({ where: { id: userId } });
     await prisma.$disconnect();
   });
 
@@ -32,6 +45,7 @@ describe("claimDocumentForProcessing", () => {
     const document = await prisma.document.create({
       data: {
         ownerId: userId,
+        organisationId,
         fileName: "a.pdf",
         fileSize: 4,
         fileData: Buffer.from("%PDF"),
@@ -50,6 +64,7 @@ describe("claimDocumentForProcessing", () => {
     const document = await prisma.document.create({
       data: {
         ownerId: userId,
+        organisationId,
         fileName: "b.pdf",
         fileSize: 4,
         fileData: Buffer.from("%PDF"),
@@ -57,7 +72,6 @@ describe("claimDocumentForProcessing", () => {
       },
     });
 
-    // Simulate two "runs" racing to claim the same document at once.
     const [first, second] = await Promise.all([
       claimDocumentForProcessing(document.id),
       claimDocumentForProcessing(document.id),
@@ -66,7 +80,6 @@ describe("claimDocumentForProcessing", () => {
     const claims = [first, second].filter((r) => r.claimed);
     const skips = [first, second].filter((r) => !r.claimed);
 
-    // Exactly one of the two racing attempts should have won the claim.
     expect(claims).toHaveLength(1);
     expect(skips).toHaveLength(1);
   });
@@ -75,6 +88,7 @@ describe("claimDocumentForProcessing", () => {
     const document = await prisma.document.create({
       data: {
         ownerId: userId,
+        organisationId,
         fileName: "c.pdf",
         fileSize: 4,
         status: "COMPLETED",
@@ -90,6 +104,7 @@ describe("claimDocumentForProcessing", () => {
     const document = await prisma.document.create({
       data: {
         ownerId: userId,
+        organisationId,
         fileName: "d.pdf",
         fileSize: 4,
         status: "FAILED",
@@ -105,6 +120,7 @@ describe("claimDocumentForProcessing", () => {
     const document = await prisma.document.create({
       data: {
         ownerId: userId,
+        organisationId,
         fileName: "e.pdf",
         fileSize: 4,
         status: "PENDING",

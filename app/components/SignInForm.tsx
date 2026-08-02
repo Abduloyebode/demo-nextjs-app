@@ -1,14 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { authClient } from "@/lib/auth-client";
 import { signInSchema } from "@/lib/auth-validation";
 
 export function SignInForm() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get("invite");
+  const inviteEmail = searchParams.get("email") ?? "";
+
+  const [email, setEmail] = useState(inviteEmail);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -23,11 +27,13 @@ export function SignInForm() {
       return;
     }
 
+    const nextPath = inviteToken ? `/invite/${inviteToken}` : "/dashboard";
+
     setPending(true);
     const { error: signInError } = await authClient.signIn.email({
       email: parsed.data.email,
       password: parsed.data.password,
-      callbackURL: "/dashboard",
+      callbackURL: nextPath,
     });
     setPending(false);
 
@@ -36,7 +42,7 @@ export function SignInForm() {
       return;
     }
 
-    router.push("/dashboard");
+    router.push(nextPath);
     router.refresh();
   }
 
@@ -48,6 +54,12 @@ export function SignInForm() {
           className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800"
         >
           {error}
+        </p>
+      ) : null}
+
+      {inviteToken ? (
+        <p className="rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-900">
+          Sign in with the invited email to join the organisation.
         </p>
       ) : null}
 
@@ -107,7 +119,11 @@ export function SignInForm() {
       <p className="text-center text-sm text-slate-600">
         New here?{" "}
         <Link
-          href="/sign-up"
+          href={
+            inviteToken
+              ? `/sign-up?invite=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(email)}`
+              : "/sign-up"
+          }
           className="font-medium text-teal-700 underline decoration-teal-200 underline-offset-4 hover:text-teal-800"
         >
           Create an account
