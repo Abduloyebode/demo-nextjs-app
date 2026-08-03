@@ -8,16 +8,23 @@ const tabs = [
     label: "Documents",
     match: "documents" as const,
   },
+  {
+    href: "/dashboard/organisation",
+    label: "Organisation",
+    match: "organisation" as const,
+  },
 ];
 
 export function DashboardShell({
   active,
   children,
+  eyebrow,
   title,
   subtitle,
 }: {
-  active: "workflows" | "documents";
+  active: "workflows" | "documents" | "organisation";
   children: React.ReactNode;
+  eyebrow?: string;
   title?: string;
   subtitle?: string;
 }) {
@@ -44,11 +51,16 @@ export function DashboardShell({
       </header>
 
       <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-12">
-        {(title || subtitle) && (
+        {(eyebrow || title || subtitle) && (
           <header className="max-w-2xl">
+            {eyebrow ? (
+              <p className="text-xs font-semibold tracking-[0.08em] text-[var(--teal)] uppercase">
+                {eyebrow}
+              </p>
+            ) : null}
             {title ? (
               <h1
-                className="text-balance text-[length:var(--font-display-size,2rem)] font-semibold text-[var(--ink)]"
+                className="mt-2 text-balance text-[length:var(--font-display-size,2rem)] font-semibold text-[var(--ink)]"
                 style={{
                   fontFamily: "var(--font-display)",
                   letterSpacing: "-0.03em",

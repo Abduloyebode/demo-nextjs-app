@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { SignInForm } from "@/app/components/SignInForm";
 
 export const metadata: Metadata = {
@@ -15,7 +16,9 @@ export default function SignInPage() {
         Welcome back. Pick up where you left the week.
       </p>
       <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm shadow-slate-200/40 sm:p-7">
-        <SignInForm />
+        <Suspense fallback={<p className="text-sm text-slate-500">Loading…</p>}>
+          <SignInForm />
+        </Suspense>
       </div>
     </div>
   );

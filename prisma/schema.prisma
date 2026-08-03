@@ -10,17 +10,20 @@ datasource db {
 }
 
 model User {
-  id            String     @id
+  id            String       @id
   name          String
   email         String
-  emailVerified Boolean    @default(false)
+  emailVerified Boolean      @default(false)
   image         String?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
   sessions      Session[]
   accounts      Account[]
   workflows     Workflow[]
   documents     Document[]
+  membership    Membership?
+  invitesSent   Invite[]     @relation("InvitesSent")
+  auditLogs     AuditLog[]
 
   @@unique([email])
   @@map("user")
@@ -71,6 +74,82 @@ model Verification {
   @@map("verification")
 }
 
+enum MembershipRole {
+  ADMIN
+  MEMBER
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+model Organisation {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  memberships Membership[]
+  invites     Invite[]
+  workflows   Workflow[]
+  documents   Document[]
+  auditLogs   AuditLog[]
+
+  @@map("organisation")
+}
+
+model Membership {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  userId         String         @unique
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           MembershipRole @default(MEMBER)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([organisationId, userId])
+  @@index([organisationId])
+  @@map("membership")
+}
+
+model Invite {
+  id             String         @id @default(cuid())
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  email          String
+  role           MembershipRole @default(MEMBER)
+  token          String         @unique
+  status         InviteStatus   @default(PENDING)
+  invitedById    String
+  invitedBy      User           @relation("InvitesSent", fields: [invitedById], references: [id], onDelete: Cascade)
+  expiresAt      DateTime
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([organisationId, email])
+  @@map("invite")
+}
+
+model AuditLog {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  actorId        String?
+  actor          User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action         String
+  entityType     String?
+  entityId       String?
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+
+  @@index([organisationId, createdAt])
+  @@map("audit_log")
+}
+
 enum WorkflowStatus {
   NOT_STARTED
   IN_PROGRESS
@@ -78,16 +157,19 @@ enum WorkflowStatus {
 }
 
 model Workflow {
-  id          String         @id @default(cuid())
-  name        String
-  description String?
-  status      WorkflowStatus @default(NOT_STARTED)
-  ownerId     String
-  owner       User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id             String         @id @default(cuid())
+  name           String
+  description    String?
+  status         WorkflowStatus @default(NOT_STARTED)
+  ownerId        String
+  owner          User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  organisationId String
+  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
   @@index([ownerId])
+  @@index([organisationId])
   @@map("workflow")
 }
 
@@ -105,23 +187,26 @@ enum DocumentRiskLevel {
 }
 
 model Document {
-  id           String             @id @default(cuid())
-  ownerId      String
-  owner        User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  fileName     String
-  fileSize     Int
+  id             String             @id @default(cuid())
+  ownerId        String
+  owner          User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  organisationId String
+  organisation   Organisation       @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  fileName       String
+  fileSize       Int
   /// Raw PDF bytes kept until background extraction finishes (then cleared).
-  fileData     Bytes?
-  status       DocumentStatus     @default(PENDING)
-  title        String?
-  summary      String?
+  fileData       Bytes?
+  status         DocumentStatus     @default(PENDING)
+  title          String?
+  summary        String?
   importantDates Json?
-  obligations  Json?
-  riskLevel    DocumentRiskLevel?
-  errorMessage String?
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  obligations    Json?
+  riskLevel      DocumentRiskLevel?
+  errorMessage   String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
 
   @@index([ownerId])
+  @@index([organisationId])
   @@map("document")
 }

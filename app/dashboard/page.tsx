@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 import type { WorkflowStatus } from "@prisma/client";
 import { DashboardShell } from "@/app/components/DashboardShell";
 import { EmptyState } from "@/app/components/ui/EmptyState";
 import { WorkflowCreateForm } from "@/app/components/workflows/WorkflowCreateForm";
 import { WorkflowRow } from "@/app/components/workflows/WorkflowRow";
-import { auth } from "@/lib/auth";
+import { requireOrganisationMembership } from "@/lib/organisation";
 import { listWorkflows, type WorkflowSort } from "@/lib/workflows";
 import { workflowStatusLabels, workflowStatusValues } from "@/lib/workflow-validation";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 
 export const metadata: Metadata = {
   title: "Workflows",
@@ -40,10 +40,7 @@ export default async function DashboardPage({
   const session = await auth.api.getSession({
     headers: await headers(),
   });
-
-  if (!session) {
-    redirect("/sign-in");
-  }
+  const { organisationId, organisation } = await requireOrganisationMembership();
 
   const params = await searchParams;
   const search = typeof params.q === "string" ? params.q : "";
@@ -52,14 +49,15 @@ export default async function DashboardPage({
   );
   const sort = parseSort(typeof params.sort === "string" ? params.sort : undefined);
 
-  const workflows = await listWorkflows(session.user.id, { search, status, sort });
+  const workflows = await listWorkflows(organisationId, { search, status, sort });
   const hasActiveFilters = Boolean(search) || Boolean(status);
 
   return (
     <DashboardShell
       active="workflows"
+      eyebrow={organisation.name}
       title="Workflows"
-      subtitle={`Track the work that moves this week · ${session.user.email}`}
+      subtitle={`Track the work that moves this week · ${session?.user.email ?? "unknown"}`}
     >
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <form

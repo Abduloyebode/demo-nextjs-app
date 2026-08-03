@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireUserId } from "@/lib/require-user-id";
+import { requireOrganisationMembership } from "@/lib/organisation";
 import { workflowSchema } from "@/lib/workflow-validation";
 
 export type WorkflowActionResult = { error: string | null };
@@ -18,7 +18,7 @@ function parseWorkflowForm(formData: FormData) {
 export async function createWorkflow(
   formData: FormData,
 ): Promise<WorkflowActionResult> {
-  const userId = await requireUserId();
+  const { userId, organisationId } = await requireOrganisationMembership();
   const parsed = parseWorkflowForm(formData);
 
   if (!parsed.success) {
@@ -31,6 +31,7 @@ export async function createWorkflow(
       description: parsed.data.description || null,
       status: parsed.data.status,
       ownerId: userId,
+      organisationId,
     },
   });
 
@@ -42,7 +43,7 @@ export async function updateWorkflow(
   id: string,
   formData: FormData,
 ): Promise<WorkflowActionResult> {
-  const userId = await requireUserId();
+  const { organisationId } = await requireOrganisationMembership();
   const parsed = parseWorkflowForm(formData);
 
   if (!parsed.success) {
@@ -50,7 +51,7 @@ export async function updateWorkflow(
   }
 
   const result = await prisma.workflow.updateMany({
-    where: { id, ownerId: userId },
+    where: { id, organisationId },
     data: {
       name: parsed.data.name,
       description: parsed.data.description || null,
@@ -67,10 +68,10 @@ export async function updateWorkflow(
 }
 
 export async function deleteWorkflow(id: string): Promise<WorkflowActionResult> {
-  const userId = await requireUserId();
+  const { organisationId } = await requireOrganisationMembership();
 
   const result = await prisma.workflow.deleteMany({
-    where: { id, ownerId: userId },
+    where: { id, organisationId },
   });
 
   if (result.count === 0) {

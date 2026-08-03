@@ -9,12 +9,15 @@ export type ListWorkflowsParams = {
   sort?: WorkflowSort;
 };
 
-export function listWorkflows(userId: string, params: ListWorkflowsParams) {
+export function listWorkflows(
+  organisationId: string,
+  params: ListWorkflowsParams,
+) {
   const { search, status, sort = "newest" } = params;
 
   return prisma.workflow.findMany({
     where: {
-      ownerId: userId,
+      organisationId,
       ...(status ? { status } : {}),
       ...(search
         ? {

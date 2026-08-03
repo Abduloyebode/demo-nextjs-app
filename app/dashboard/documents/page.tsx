@@ -4,7 +4,7 @@ import { EmptyState } from "@/app/components/ui/EmptyState";
 import { DocumentUploadForm } from "@/app/components/documents/DocumentUploadForm";
 import { DocumentRow } from "@/app/components/documents/DocumentRow";
 import { DocumentsAutoRefresh } from "@/app/components/documents/DocumentsAutoRefresh";
-import { requireUserId } from "@/lib/require-user-id";
+import { requireOrganisationMembership } from "@/lib/organisation";
 import { isInFlightDocumentStatus } from "@/lib/document-job";
 import { listDocuments } from "@/lib/documents";
 
@@ -13,8 +13,8 @@ export const metadata: Metadata = {
 };
 
 export default async function DocumentsPage() {
-  const userId = await requireUserId();
-  const documents = await listDocuments(userId);
+  const { organisationId } = await requireOrganisationMembership();
+  const documents = await listDocuments(organisationId);
   const hasInFlight = documents.some((document) =>
     isInFlightDocumentStatus(document.status),
   );
