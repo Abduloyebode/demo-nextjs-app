@@ -1,4 +1,8 @@
-import { prisma } from "@/lib/prisma";
+import {
+  isConcurrentWriteConflict,
+  isUniqueConstraintViolation,
+  prisma,
+} from "@/lib/prisma";
 import {
   createInviteToken,
   hashInviteToken,
@@ -22,7 +26,7 @@ export function listOrganisationMembers(organisationId: string) {
 
 export function listPendingInvites(organisationId: string) {
   return prisma.invite.findMany({
-    where: { organisationId, status: "PENDING" },
+    where: { organisationId, status: "PENDING", expiresAt: { gt: new Date() } },
     orderBy: { createdAt: "desc" },
     include: {
       invitedBy: { select: { id: true, name: true, email: true } },
@@ -56,36 +60,60 @@ export async function inviteMember(
       return { error: "That person is already in this organisation." };
     }
     if (existingMembership) {
-      return {
-        error:
-          "That person already belongs to another organisation and cannot join this one.",
-      };
+      // Every user gets a personal organisation auto-created on first
+      // dashboard visit, so almost any existing account already has a
+      // membership somewhere. If they're the sole member of that org,
+      // inviting them here is fine — acceptInvite() safely retires that
+      // membership when they accept, since nobody else depends on it.
+      const existingOrgMemberCount = await prisma.membership.count({
+        where: { organisationId: existingMembership.organisationId },
+      });
+      if (existingOrgMemberCount > 1) {
+        return {
+          error:
+            "That person already belongs to another organisation and cannot join this one.",
+        };
+      }
     }
   }
 
-  const pending = await prisma.invite.findFirst({
+  // Flip any invites that passed their TTL but are still marked PENDING
+  // (status only flips lazily, when someone tries to accept) so the
+  // database's partial unique index below only ever blocks a genuinely
+  // live invite, never a stale one nobody redeemed.
+  await prisma.invite.updateMany({
     where: {
       organisationId: ctx.organisationId,
       email,
       status: "PENDING",
-      expiresAt: { gt: new Date() },
+      expiresAt: { lte: new Date() },
     },
+    data: { status: "EXPIRED" },
   });
-  if (pending) {
-    return { error: "An invite is already pending for that email." };
-  }
 
   const rawToken = createInviteToken();
-  const invite = await prisma.invite.create({
-    data: {
-      organisationId: ctx.organisationId,
-      email,
-      role: input.role,
-      token: hashInviteToken(rawToken),
-      invitedById: ctx.userId,
-      expiresAt: new Date(Date.now() + INVITE_TTL_MS),
-    },
-  });
+  let invite;
+  try {
+    invite = await prisma.invite.create({
+      data: {
+        organisationId: ctx.organisationId,
+        email,
+        role: input.role,
+        token: hashInviteToken(rawToken),
+        invitedById: ctx.userId,
+        expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+      },
+    });
+  } catch (error) {
+    // A concurrent invite request for the same organisation + email can
+    // race this exact check-then-insert; the database's partial unique
+    // index (one PENDING invite per org+email) is what actually prevents
+    // duplicates, so a violation here just means someone else won the race.
+    if (isUniqueConstraintViolation(error)) {
+      return { error: "An invite is already pending for that email." };
+    }
+    throw error;
+  }
 
   await writeAuditLog({
     organisationId: ctx.organisationId,
@@ -159,24 +187,31 @@ export async function removeMember(
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    if (target.role === "ADMIN") {
-      // Lock every admin row in this org before counting, so a concurrent
-      // removeMember/changeMemberRole call targeting a *different* admin
-      // has to wait for this transaction to commit (and see the updated
-      // count) instead of reading the same stale "2 admins" snapshot —
-      // otherwise two concurrent removals can each pass this check and
-      // leave the organisation with zero admins.
-      const admins = await tx.$queryRaw<{ id: string }[]>`
-        SELECT id FROM membership
-        WHERE "organisationId" = ${ctx.organisationId} AND role = 'ADMIN'::"MembershipRole"
-        FOR UPDATE
-      `;
-      if (admins.length <= 1) {
-        return { error: "You cannot remove the last admin." };
-      }
+    // Lock every membership row in this org, in a stable order (so
+    // concurrent removeMember/changeMemberRole calls always acquire locks
+    // in the same sequence and can't deadlock each other), and re-derive
+    // the target's *current* role and the *current* admin count from that
+    // locked snapshot. `target` was fetched before this transaction opened
+    // — if some other call changed its role in between (e.g. promoted it
+    // to admin), that stale value must not be what decides whether the
+    // last-admin guard below applies, or the guard can be silently skipped.
+    const rows = await tx.$queryRaw<{ id: string; role: MembershipRole }[]>`
+      SELECT id, role FROM membership
+      WHERE "organisationId" = ${ctx.organisationId}
+      ORDER BY id
+      FOR UPDATE
+    `;
+    const current = rows.find((row) => row.id === target.id);
+    if (!current) {
+      return { error: "That member could not be found." };
     }
 
-    await tx.membership.delete({ where: { id: target.id } });
+    const adminCount = rows.filter((row) => row.role === "ADMIN").length;
+    if (current.role === "ADMIN" && adminCount <= 1) {
+      return { error: "You cannot remove the last admin." };
+    }
+
+    await tx.membership.delete({ where: { id: current.id } });
     return { error: null };
   });
 
@@ -218,21 +253,29 @@ export async function changeMemberRole(
   }
 
   const result = await prisma.$transaction(async (tx) => {
+    // Lock every membership row in this org, in a stable order (same
+    // pattern as removeMember, so the two functions can never deadlock
+    // each other), and re-derive the target's *current* role from that
+    // locked snapshot rather than the `target` fetched before this
+    // transaction opened — a concurrent role change in that gap must not
+    // be missed, or the last-admin guard below can be silently skipped.
+    const rows = await tx.$queryRaw<{ id: string; role: MembershipRole }[]>`
+      SELECT id, role FROM membership
+      WHERE "organisationId" = ${ctx.organisationId}
+      ORDER BY id
+      FOR UPDATE
+    `;
+    const current = rows.find((row) => row.id === target.id);
+    if (!current) {
+      return { error: "That member could not be found.", updated: false };
+    }
+
     // Order matches the original checks exactly: last-admin guard first,
     // then self-demote, then no-op — only the error precedence for a solo
     // admin demoting themselves ("last admin", not "yourself") depends on it.
-    if (target.role === "ADMIN" && role === "MEMBER") {
-      // Lock all admin rows in this org before counting, same pattern as
-      // removeMember: a concurrent demote/remove of another admin has to
-      // wait for this transaction to commit instead of reading the same
-      // stale "2 admins" snapshot, which could otherwise let two
-      // concurrent calls both pass this check and zero out the admins.
-      const admins = await tx.$queryRaw<{ id: string }[]>`
-        SELECT id FROM membership
-        WHERE "organisationId" = ${ctx.organisationId} AND role = 'ADMIN'::"MembershipRole"
-        FOR UPDATE
-      `;
-      if (admins.length <= 1) {
+    if (current.role === "ADMIN" && role === "MEMBER") {
+      const adminCount = rows.filter((row) => row.role === "ADMIN").length;
+      if (adminCount <= 1) {
         return { error: "You cannot demote the last admin.", updated: false };
       }
     }
@@ -241,11 +284,11 @@ export async function changeMemberRole(
       return { error: "You cannot demote yourself.", updated: false };
     }
 
-    if (target.role === role) {
+    if (current.role === role) {
       return { error: null, updated: false };
     }
 
-    await tx.membership.update({ where: { id: target.id }, data: { role } });
+    await tx.membership.update({ where: { id: current.id }, data: { role } });
     return { error: null, updated: true };
   });
 
@@ -314,25 +357,87 @@ export async function acceptInvite(
   }
 
   if (existing) {
-    return {
-      error:
-        "You already belong to another organisation. Leave it before accepting this invite.",
-    };
+    // Every user gets a personal organisation auto-created the first time
+    // they load the dashboard (see createPersonalOrganisation), so almost
+    // any returning user already has a membership by the time they open an
+    // invite. If they're the sole member of that org, leaving it to join
+    // the invited one is safe — nobody else is affected, and there's no
+    // other way to escape this (no self-service "leave" exists). Only
+    // block the switch if leaving would actually orphan other members.
+    const existingOrgMemberCount = await prisma.membership.count({
+      where: { organisationId: existing.organisationId },
+    });
+
+    if (existingOrgMemberCount > 1) {
+      return {
+        error:
+          "You already belong to another organisation. Leave it before accepting this invite.",
+      };
+    }
+
+    try {
+      await prisma.$transaction([
+        prisma.membership.delete({ where: { id: existing.id } }),
+        prisma.membership.create({
+          data: {
+            organisationId: invite.organisationId,
+            userId,
+            role: invite.role,
+          },
+        }),
+        prisma.invite.update({
+          where: { id: invite.id },
+          data: { status: "ACCEPTED" },
+        }),
+      ]);
+    } catch (error) {
+      // A double-submitted accept (double-click, replayed request) can race
+      // itself here: the second call's delete/create can hit a row the
+      // first call already removed or already claimed. Degrade to a clean
+      // message instead of an unhandled 500 — the first call's result
+      // stands either way.
+      if (isConcurrentWriteConflict(error)) {
+        return { error: "This invite may have already been accepted. Refresh and check your dashboard." };
+      }
+      throw error;
+    }
+
+    await writeAuditLog({
+      organisationId: invite.organisationId,
+      actorId: userId,
+      action: "INVITE_ACCEPTED",
+      entityType: "invite",
+      entityId: invite.id,
+      metadata: {
+        email: invite.email,
+        role: invite.role,
+        switchedFromOrganisationId: existing.organisationId,
+      },
+    });
+
+    return { error: null };
   }
 
-  await prisma.$transaction([
-    prisma.membership.create({
-      data: {
-        organisationId: invite.organisationId,
-        userId,
-        role: invite.role,
-      },
-    }),
-    prisma.invite.update({
-      where: { id: invite.id },
-      data: { status: "ACCEPTED" },
-    }),
-  ]);
+  try {
+    await prisma.$transaction([
+      prisma.membership.create({
+        data: {
+          organisationId: invite.organisationId,
+          userId,
+          role: invite.role,
+        },
+      }),
+      prisma.invite.update({
+        where: { id: invite.id },
+        data: { status: "ACCEPTED" },
+      }),
+    ]);
+  } catch (error) {
+    if (isConcurrentWriteConflict(error)) {
+      return { error: "This invite may have already been accepted. Refresh and check your dashboard." };
+    }
+    throw error;
+  }
 
   await writeAuditLog({
     organisationId: invite.organisationId,

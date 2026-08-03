@@ -17,16 +17,28 @@ export async function writeAuditLog(input: {
   entityId?: string | null;
   metadata?: Prisma.InputJsonValue;
 }) {
-  return prisma.auditLog.create({
-    data: {
-      organisationId: input.organisationId,
-      actorId: input.actorId ?? null,
+  // Best-effort: the audit trail is a record of an action that already
+  // happened, so a transient failure here must not surface as an error on
+  // an operation that actually succeeded. Log and swallow instead of
+  // throwing.
+  try {
+    return await prisma.auditLog.create({
+      data: {
+        organisationId: input.organisationId,
+        actorId: input.actorId ?? null,
+        action: input.action,
+        entityType: input.entityType ?? null,
+        entityId: input.entityId ?? null,
+        metadata: input.metadata ?? undefined,
+      },
+    });
+  } catch (error) {
+    console.error("[audit] Failed to write audit log entry", {
       action: input.action,
-      entityType: input.entityType ?? null,
-      entityId: input.entityId ?? null,
-      metadata: input.metadata ?? undefined,
-    },
-  });
+      organisationId: input.organisationId,
+    }, error);
+    return null;
+  }
 }
 
 export function listAuditLogs(organisationId: string, limit = 50) {
