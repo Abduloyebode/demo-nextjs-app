@@ -12,7 +12,7 @@ export function WorkflowCreateForm() {
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="inline-flex min-h-10 items-center rounded-full bg-teal-700 px-5 text-sm font-semibold text-white transition hover:bg-teal-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+        className="inline-flex min-h-10 items-center rounded-full bg-[var(--teal)] px-5 text-sm font-semibold text-white transition hover:bg-[var(--teal-bright)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--teal)] focus-visible:ring-offset-2"
       >
         New workflow
       </button>
@@ -20,8 +20,8 @@ export function WorkflowCreateForm() {
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm shadow-slate-200/40">
-      <h3 className="text-sm font-semibold text-slate-900">New workflow</h3>
+    <div className="w-full rounded-[var(--radius-md)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-panel)] lg:max-w-md lg:self-start">
+      <h3 className="text-sm font-semibold text-[var(--ink)]">New workflow</h3>
       <div className="mt-4">
         <WorkflowForm
           submitLabel="Create workflow"

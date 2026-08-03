@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { WorkflowStatus } from "@prisma/client";
 import { DashboardShell } from "@/app/components/DashboardShell";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 import { WorkflowCreateForm } from "@/app/components/workflows/WorkflowCreateForm";
 import { WorkflowRow } from "@/app/components/workflows/WorkflowRow";
 import { requireOrganisationMembership } from "@/lib/organisation";
@@ -11,7 +12,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
 export const metadata: Metadata = {
-  title: "Dashboard",
+  title: "Workflows",
 };
 
 function parseStatus(value: string | undefined): WorkflowStatus | undefined {
@@ -27,6 +28,9 @@ function parseSort(value: string | undefined): WorkflowSort {
   }
   return "newest";
 }
+
+const fieldClass =
+  "mt-1.5 w-full min-w-[10rem] rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--teal)] focus:ring-2 focus:ring-[var(--teal-soft)] sm:w-auto";
 
 export default async function DashboardPage({
   searchParams,
@@ -51,16 +55,20 @@ export default async function DashboardPage({
   return (
     <DashboardShell
       active="workflows"
-      eyebrow="Dashboard"
-      title={`Welcome, ${session?.user.name ?? "there"}.`}
-      subtitle={`Signed in as ${session?.user.email ?? "unknown"} · ${organisation.name}`}
+      eyebrow={organisation.name}
+      title="Workflows"
+      subtitle={`Track the work that moves this week · ${session?.user.email ?? "unknown"}`}
     >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <form className="flex flex-wrap items-end gap-3" role="search">
-          <div>
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <form
+          className="flex flex-1 flex-wrap items-end gap-3"
+          role="search"
+          aria-label="Filter workflows"
+        >
+          <div className="min-w-[12rem] flex-1 sm:max-w-xs">
             <label
               htmlFor="q"
-              className="block text-xs font-semibold tracking-[0.1em] text-slate-500 uppercase"
+              className="block text-xs font-semibold tracking-[0.08em] text-[var(--muted)] uppercase"
             >
               Search
             </label>
@@ -69,15 +77,15 @@ export default async function DashboardPage({
               name="q"
               type="search"
               defaultValue={search}
-              placeholder="Search workflows"
-              className="mt-1.5 w-56 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-400 focus:ring-2 focus:ring-teal-200"
+              placeholder="Name or description"
+              className={fieldClass}
             />
           </div>
 
           <div>
             <label
               htmlFor="status"
-              className="block text-xs font-semibold tracking-[0.1em] text-slate-500 uppercase"
+              className="block text-xs font-semibold tracking-[0.08em] text-[var(--muted)] uppercase"
             >
               Status
             </label>
@@ -85,9 +93,9 @@ export default async function DashboardPage({
               id="status"
               name="status"
               defaultValue={status ?? ""}
-              className="mt-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-200"
+              className={fieldClass}
             >
-              <option value="">All statuses</option>
+              <option value="">All</option>
               {workflowStatusValues.map((value) => (
                 <option key={value} value={value}>
                   {workflowStatusLabels[value]}
@@ -99,32 +107,27 @@ export default async function DashboardPage({
           <div>
             <label
               htmlFor="sort"
-              className="block text-xs font-semibold tracking-[0.1em] text-slate-500 uppercase"
+              className="block text-xs font-semibold tracking-[0.08em] text-[var(--muted)] uppercase"
             >
               Sort
             </label>
-            <select
-              id="sort"
-              name="sort"
-              defaultValue={sort}
-              className="mt-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-teal-400 focus:ring-2 focus:ring-teal-200"
-            >
-              <option value="newest">Newest first</option>
-              <option value="oldest">Oldest first</option>
-              <option value="name">Name (A-Z)</option>
+            <select id="sort" name="sort" defaultValue={sort} className={fieldClass}>
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="name">Name</option>
             </select>
           </div>
 
           <button
             type="submit"
-            className="inline-flex min-h-10 items-center rounded-full border border-slate-200 bg-white px-5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+            className="inline-flex min-h-10 items-center rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-medium text-[var(--ink-soft)] transition hover:border-[var(--teal)]/40 hover:bg-[var(--teal-soft)]/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--teal)]"
           >
             Apply
           </button>
           {hasActiveFilters ? (
             <Link
               href="/dashboard"
-              className="text-sm font-medium text-slate-500 underline decoration-slate-300 underline-offset-4 hover:text-slate-800"
+              className="pb-2 text-sm font-medium text-[var(--muted)] underline decoration-[var(--line)] underline-offset-4 hover:text-[var(--ink)]"
             >
               Clear
             </Link>
@@ -134,22 +137,23 @@ export default async function DashboardPage({
         <WorkflowCreateForm />
       </div>
 
-      <div className="mt-8">
+      <div className="mt-6">
         {workflows.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
-            <p className="text-sm font-semibold text-slate-900">
-              {hasActiveFilters
-                ? "No workflows match these filters."
-                : "No workflows yet."}
-            </p>
-            <p className="mt-1.5 text-sm text-slate-500">
-              {hasActiveFilters
-                ? "Try clearing the search or status filter."
-                : "Create your first workflow to get started."}
-            </p>
-          </div>
+          <EmptyState
+            title={
+              hasActiveFilters
+                ? "No workflows match these filters"
+                : "No workflows yet"
+            }
+            description={
+              hasActiveFilters
+                ? "Clear search or status to see everything again."
+                : "Create a workflow for the next concrete piece of work."
+            }
+            action={!hasActiveFilters ? <WorkflowCreateForm /> : undefined}
+          />
         ) : (
-          <ul className="space-y-3">
+          <ul className="space-y-3" aria-label="Workflow list">
             {workflows.map((workflow) => (
               <WorkflowRow key={workflow.id} workflow={workflow} />
             ))}

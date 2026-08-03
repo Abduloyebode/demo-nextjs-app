@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DashboardShell } from "@/app/components/DashboardShell";
+import { EmptyState } from "@/app/components/ui/EmptyState";
 import { DocumentUploadForm } from "@/app/components/documents/DocumentUploadForm";
 import { DocumentRow } from "@/app/components/documents/DocumentRow";
 import { DocumentsAutoRefresh } from "@/app/components/documents/DocumentsAutoRefresh";
@@ -17,25 +18,41 @@ export default async function DocumentsPage() {
   const hasInFlight = documents.some((document) =>
     isInFlightDocumentStatus(document.status),
   );
+  const inFlightCount = documents.filter((document) =>
+    isInFlightDocumentStatus(document.status),
+  ).length;
 
   return (
     <>
       <DocumentsAutoRefresh active={hasInFlight} />
-      <DashboardShell active="documents">
+      <DashboardShell
+        active="documents"
+        title="Documents"
+        subtitle="Upload a PDF; extraction runs in the background and results land here."
+      >
         <DocumentUploadForm />
 
-        <div className="mt-8">
+        {hasInFlight ? (
+          <p
+            role="status"
+            aria-live="polite"
+            className="mt-4 rounded-[10px] border border-[var(--amber)]/20 bg-[var(--amber-soft)] px-3 py-2 text-sm text-[var(--amber)]"
+          >
+            {inFlightCount === 1
+              ? "1 document is still extracting…"
+              : `${inFlightCount} documents are still extracting…`}{" "}
+            This page refreshes automatically.
+          </p>
+        ) : null}
+
+        <div className="mt-6">
           {documents.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-14 text-center">
-              <p className="text-sm font-semibold text-slate-900">
-                No documents yet.
-              </p>
-              <p className="mt-1.5 text-sm text-slate-500">
-                Upload a PDF above to get started.
-              </p>
-            </div>
+            <EmptyState
+              title="No documents yet"
+              description="Upload a PDF above to extract title, summary, dates, obligations, and risk."
+            />
           ) : (
-            <ul className="space-y-3">
+            <ul className="space-y-3" aria-label="Document list">
               {documents.map((document) => (
                 <DocumentRow key={document.id} document={document} />
               ))}

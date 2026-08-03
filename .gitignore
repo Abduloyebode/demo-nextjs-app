@@ -12,6 +12,12 @@
 .DS_Store
 *.pem
 
+# Impeccable skill packs (reinstall with: npx impeccable install -y --providers=cursor --scope=project)
+.claude/skills/
+.cursor/skills/
+.rovodev/skills/
+.impeccable/live/
+
 # debug logs
 npm-debug.log*
 yarn-debug.log*
