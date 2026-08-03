@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { MembershipRole, Organisation } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { isUniqueConstraintViolation, prisma } from "@/lib/prisma";
 import { requireUserId } from "@/lib/require-user-id";
 import { writeAuditLog } from "@/lib/audit";
 import { slugifyOrgBase } from "@/lib/organisation-shared";
@@ -39,27 +39,39 @@ export async function createPersonalOrganisation(userId: string) {
   const name = `${baseName}'s organisation`;
   const slug = buildOrganisationSlug(user.email.split("@")[0] || "org");
 
-  const organisation = await prisma.organisation.create({
-    data: {
-      name,
-      slug,
-      memberships: {
-        create: {
-          userId,
-          role: "ADMIN",
+  try {
+    const organisation = await prisma.organisation.create({
+      data: {
+        name,
+        slug,
+        memberships: {
+          create: {
+            userId,
+            role: "ADMIN",
+          },
         },
       },
-    },
-  });
+    });
 
-  await writeAuditLog({
-    organisationId: organisation.id,
-    actorId: userId,
-    action: "ORGANISATION_CREATED",
-    entityType: "organisation",
-    entityId: organisation.id,
-    metadata: { source: "bootstrap" },
-  });
+    await writeAuditLog({
+      organisationId: organisation.id,
+      actorId: userId,
+      action: "ORGANISATION_CREATED",
+      entityType: "organisation",
+      entityId: organisation.id,
+      metadata: { source: "bootstrap" },
+    });
+  } catch (error) {
+    // Two concurrent first-ever dashboard loads for a brand-new user can
+    // both reach here; only one organisation.create can win the unique
+    // constraint on Membership.userId (nested writes are atomic, so the
+    // loser's whole create — organisation included — rolls back cleanly).
+    // Fall back to the membership the winner created instead of surfacing
+    // an unhandled 500.
+    if (!isUniqueConstraintViolation(error)) {
+      throw error;
+    }
+  }
 
   const membership = await prisma.membership.findUniqueOrThrow({
     where: { userId },

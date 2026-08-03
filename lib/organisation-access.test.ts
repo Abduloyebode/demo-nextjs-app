@@ -7,6 +7,7 @@ import {
   acceptInvite,
   changeMemberRole,
   inviteMember,
+  listPendingInvites,
   removeMember,
 } from "./organisation-admin";
 import {
@@ -253,6 +254,126 @@ describe("organisation access control", () => {
 
     const result = await acceptInvite(rawToken, outsiderId, "not-the-invite@example.com");
     expect(result.error).toMatch(/email/i);
+  });
+
+  it("lets a user who is the sole member of their own organisation switch orgs by accepting an invite", async () => {
+    // Mirrors the auto-created personal organisation every user gets on
+    // first dashboard visit: one user, one org, that user as its only
+    // (admin) member. Accepting an invite elsewhere should be allowed to
+    // silently retire that membership rather than being permanently blocked.
+    const soloUser = await prisma.user.create({
+      data: { id: randomUUID(), name: "Solo", email: `solo-switch-${randomUUID()}@example.com`, emailVerified: false },
+    });
+    const soloOrg = await prisma.organisation.create({
+      data: {
+        name: "Solo Personal Org",
+        slug: `solo-switch-${randomUUID().slice(0, 8)}`,
+        memberships: { create: { userId: soloUser.id, role: "ADMIN" } },
+      },
+    });
+
+    const email = soloUser.email;
+    const inviteResult = await inviteMember(adminCtx(), { email, role: "MEMBER" });
+    expect(inviteResult.error).toBeNull();
+    const rawToken = inviteResult.inviteUrl!.split("/invite/")[1]!;
+
+    const acceptResult = await acceptInvite(rawToken, soloUser.id, email);
+    expect(acceptResult.error).toBeNull();
+
+    const membership = await prisma.membership.findUnique({ where: { userId: soloUser.id } });
+    expect(membership?.organisationId).toBe(organisationId);
+    expect(membership?.role).toBe("MEMBER");
+
+    const oldOrgMemberCount = await prisma.membership.count({ where: { organisationId: soloOrg.id } });
+    expect(oldOrgMemberCount).toBe(0);
+
+    await prisma.membership.deleteMany({ where: { userId: soloUser.id } });
+    await prisma.organisation.delete({ where: { id: soloOrg.id } });
+    await prisma.user.delete({ where: { id: soloUser.id } });
+  });
+
+  it("still blocks inviting or switching a user whose existing organisation has other members", async () => {
+    const teamUser = await prisma.user.create({
+      data: { id: randomUUID(), name: "Teammate", email: `team-member-${randomUUID()}@example.com`, emailVerified: false },
+    });
+    const teamAdmin = await prisma.user.create({
+      data: { id: randomUUID(), name: "Team Admin", email: `team-admin-${randomUUID()}@example.com`, emailVerified: false },
+    });
+    const teamOrg = await prisma.organisation.create({
+      data: {
+        name: "Real Team Org",
+        slug: `team-${randomUUID().slice(0, 8)}`,
+        memberships: {
+          create: [
+            { userId: teamAdmin.id, role: "ADMIN" },
+            { userId: teamUser.id, role: "MEMBER" },
+          ],
+        },
+      },
+    });
+
+    // inviteMember itself should refuse to create the invite in the first
+    // place, since teamUser isn't the sole member of their current org.
+    const inviteResult = await inviteMember(adminCtx(), { email: teamUser.email, role: "MEMBER" });
+    expect(inviteResult.error).toMatch(/already belong/i);
+
+    // Even if an invite exists anyway (e.g. created before teamUser joined
+    // a second member), acceptInvite must still refuse to switch them.
+    const rawToken = createInviteToken();
+    await prisma.invite.create({
+      data: {
+        organisationId,
+        email: teamUser.email,
+        role: "MEMBER",
+        token: hashInviteToken(rawToken),
+        invitedById: adminId,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+    const acceptResult = await acceptInvite(rawToken, teamUser.id, teamUser.email);
+    expect(acceptResult.error).toMatch(/already belong/i);
+
+    const membership = await prisma.membership.findUnique({ where: { userId: teamUser.id } });
+    expect(membership?.organisationId).toBe(teamOrg.id);
+
+    await prisma.organisation.delete({ where: { id: teamOrg.id } });
+    await prisma.user.deleteMany({ where: { id: { in: [teamUser.id, teamAdmin.id] } } });
+  });
+
+  it("blocks two concurrent invites for the same email from both succeeding", async () => {
+    const email = `concurrent-invite-${randomUUID()}@example.com`;
+
+    const [r1, r2] = await Promise.all([
+      inviteMember(adminCtx(), { email, role: "MEMBER" }),
+      inviteMember(adminCtx(), { email, role: "MEMBER" }),
+    ]);
+
+    const errors = [r1.error, r2.error];
+    expect(errors.filter((e) => e === null).length).toBe(1);
+    expect(errors.find((e) => e !== null)).toMatch(/already pending/i);
+
+    const liveInvites = await prisma.invite.count({
+      where: { organisationId, email, status: "PENDING" },
+    });
+    expect(liveInvites).toBe(1);
+  });
+
+  it("excludes expired invites from the pending-invites list even before anyone tries to accept them", async () => {
+    const email = `expired-${randomUUID()}@example.com`;
+    await prisma.invite.create({
+      data: {
+        organisationId,
+        email,
+        role: "MEMBER",
+        token: hashInviteToken(createInviteToken()),
+        invitedById: adminId,
+        status: "PENDING",
+        expiresAt: new Date(Date.now() - 60_000), // already past TTL
+      },
+    });
+
+    const pending = await listPendingInvites(organisationId);
+    expect(pending.some((invite) => invite.email === email)).toBe(false);
   });
 
   it("prevents demoting the last admin", async () => {

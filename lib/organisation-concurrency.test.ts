@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { prisma } from "./prisma";
 import { removeMember, changeMemberRole } from "./organisation-admin";
 import type { OrganisationContext } from "./organisation";
@@ -65,5 +65,102 @@ describe("last-admin protection under concurrent requests", () => {
 
     await prisma.organisation.deleteMany({ where: { id: org.id } });
     await prisma.user.deleteMany({ where: { id: { in: [admin1.id, admin2.id] } } });
+  });
+
+  it("removeMember blocks deleting the last admin even if the pre-fetch snapshot was stale", async () => {
+    // Simulates: another request promotes `target` to admin (its org's only
+    // admin) in the gap between removeMember's initial findFirst and the
+    // transaction that decides whether to delete it. The guard must judge
+    // the *current* DB state, not whatever findFirst happened to return.
+    const caller = await prisma.user.create({
+      data: { id: randomUUID(), name: "Caller", email: `caller-${randomUUID()}@example.com`, emailVerified: false },
+    });
+    const targetUser = await prisma.user.create({
+      data: { id: randomUUID(), name: "Target", email: `target-${randomUUID()}@example.com`, emailVerified: false },
+    });
+    const org = await prisma.organisation.create({
+      data: {
+        name: "Stale Read Org",
+        slug: `stale-${randomUUID().slice(0, 8)}`,
+        memberships: { create: { userId: targetUser.id, role: "MEMBER" } },
+      },
+      include: { memberships: true },
+    });
+    const target = org.memberships[0]!;
+
+    const staleSnapshot = { ...target, role: "MEMBER" as const };
+    const findFirstSpy = vi
+      .spyOn(prisma.membership, "findFirst")
+      .mockImplementationOnce(
+        (async () => staleSnapshot) as unknown as typeof prisma.membership.findFirst,
+      );
+
+    // Really promote target to admin — it's now the org's only admin —
+    // simulating the concurrent change the stale snapshot missed.
+    await prisma.membership.update({ where: { id: target.id }, data: { role: "ADMIN" } });
+
+    const ctx: OrganisationContext = {
+      userId: caller.id,
+      organisationId: org.id,
+      role: "ADMIN",
+      membershipId: "not-a-real-membership",
+      organisation: org,
+    };
+
+    const result = await removeMember(ctx, target.id);
+    findFirstSpy.mockRestore();
+
+    expect(result.error).toMatch(/last admin/i);
+    const stillThere = await prisma.membership.findUnique({ where: { id: target.id } });
+    expect(stillThere).not.toBeNull();
+    expect(stillThere?.role).toBe("ADMIN");
+
+    await prisma.organisation.deleteMany({ where: { id: org.id } });
+    await prisma.user.deleteMany({ where: { id: { in: [caller.id, targetUser.id] } } });
+  });
+
+  it("changeMemberRole blocks demoting the last admin even if the pre-fetch snapshot was stale", async () => {
+    const caller = await prisma.user.create({
+      data: { id: randomUUID(), name: "Caller", email: `caller-${randomUUID()}@example.com`, emailVerified: false },
+    });
+    const targetUser = await prisma.user.create({
+      data: { id: randomUUID(), name: "Target", email: `target-${randomUUID()}@example.com`, emailVerified: false },
+    });
+    const org = await prisma.organisation.create({
+      data: {
+        name: "Stale Read Org 2",
+        slug: `stale2-${randomUUID().slice(0, 8)}`,
+        memberships: { create: { userId: targetUser.id, role: "MEMBER" } },
+      },
+      include: { memberships: true },
+    });
+    const target = org.memberships[0]!;
+
+    const staleSnapshot = { ...target, role: "MEMBER" as const };
+    const findFirstSpy = vi
+      .spyOn(prisma.membership, "findFirst")
+      .mockImplementationOnce(
+        (async () => staleSnapshot) as unknown as typeof prisma.membership.findFirst,
+      );
+
+    await prisma.membership.update({ where: { id: target.id }, data: { role: "ADMIN" } });
+
+    const ctx: OrganisationContext = {
+      userId: caller.id,
+      organisationId: org.id,
+      role: "ADMIN",
+      membershipId: "not-a-real-membership",
+      organisation: org,
+    };
+
+    const result = await changeMemberRole(ctx, target.id, "MEMBER");
+    findFirstSpy.mockRestore();
+
+    expect(result.error).toMatch(/last admin/i);
+    const stillThere = await prisma.membership.findUnique({ where: { id: target.id } });
+    expect(stillThere?.role).toBe("ADMIN");
+
+    await prisma.organisation.deleteMany({ where: { id: org.id } });
+    await prisma.user.deleteMany({ where: { id: { in: [caller.id, targetUser.id] } } });
   });
 });

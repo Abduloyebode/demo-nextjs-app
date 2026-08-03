@@ -13,7 +13,6 @@ import {
   requireOrganisationMembership,
 } from "@/lib/organisation";
 import { inviteMemberSchema, parseMembershipRole } from "@/lib/organisation-validation";
-import { requireUserId } from "@/lib/require-user-id";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
@@ -83,13 +82,12 @@ export async function changeOrganisationMemberRole(
 export async function acceptOrganisationInvite(
   token: string,
 ): Promise<OrgActionResult> {
-  const userId = await requireUserId();
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) {
     return { error: "Sign in to accept this invite." };
   }
 
-  const result = await acceptInvite(token, userId, session.user.email);
+  const result = await acceptInvite(token, session.user.id, session.user.email);
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/organisation");
   return result;
