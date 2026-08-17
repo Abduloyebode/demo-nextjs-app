@@ -24,6 +24,17 @@ export function listOrganisationMembers(organisationId: string) {
   });
 }
 
+export async function isOrganisationMember(
+  organisationId: string,
+  userId: string,
+): Promise<boolean> {
+  const membership = await prisma.membership.findFirst({
+    where: { organisationId, userId },
+    select: { id: true },
+  });
+  return membership !== null;
+}
+
 export function listPendingInvites(organisationId: string) {
   return prisma.invite.findMany({
     where: { organisationId, status: "PENDING", expiresAt: { gt: new Date() } },

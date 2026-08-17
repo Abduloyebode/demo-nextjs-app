@@ -7,7 +7,13 @@ export type AuditAction =
   | "INVITE_REVOKED"
   | "INVITE_ACCEPTED"
   | "MEMBER_REMOVED"
-  | "MEMBER_ROLE_CHANGED";
+  | "MEMBER_ROLE_CHANGED"
+  | "WORKFLOW_DELETED"
+  | "WORKFLOW_RESTORED"
+  | "WORKFLOW_STATUS_CHANGED"
+  | "WORKFLOW_STATUS_REVERTED"
+  | "DOCUMENT_DELETED"
+  | "DOCUMENT_RESTORED";
 
 export async function writeAuditLog(input: {
   organisationId: string;

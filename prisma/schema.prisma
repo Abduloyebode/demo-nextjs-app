@@ -10,20 +10,21 @@ datasource db {
 }
 
 model User {
-  id            String       @id
-  name          String
-  email         String
-  emailVerified Boolean      @default(false)
-  image         String?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  sessions      Session[]
-  accounts      Account[]
-  workflows     Workflow[]
-  documents     Document[]
-  membership    Membership?
-  invitesSent   Invite[]     @relation("InvitesSent")
-  auditLogs     AuditLog[]
+  id                String      @id
+  name              String
+  email             String
+  emailVerified     Boolean     @default(false)
+  image             String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  sessions          Session[]
+  accounts          Account[]
+  workflows         Workflow[]  @relation("WorkflowOwner")
+  assignedWorkflows Workflow[]  @relation("WorkflowAssignee")
+  documents         Document[]
+  membership        Membership?
+  invitesSent       Invite[]    @relation("InvitesSent")
+  auditLogs         AuditLog[]
 
   @@unique([email])
   @@map("user")
@@ -157,19 +158,26 @@ enum WorkflowStatus {
 }
 
 model Workflow {
-  id             String         @id @default(cuid())
+  id             String          @id @default(cuid())
   name           String
   description    String?
-  status         WorkflowStatus @default(NOT_STARTED)
+  status         WorkflowStatus  @default(NOT_STARTED)
+  previousStatus WorkflowStatus?
   ownerId        String
-  owner          User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner          User            @relation("WorkflowOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  assigneeId     String?
+  assignee       User?           @relation("WorkflowAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
   organisationId String
-  organisation   Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  organisation   Organisation    @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  dueDate        DateTime?
+  deletedAt      DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   @@index([ownerId])
-  @@index([organisationId])
+  @@index([assigneeId])
+  @@index([organisationId, deletedAt])
+  @@index([organisationId, dueDate])
   @@map("workflow")
 }
 
@@ -203,10 +211,11 @@ model Document {
   obligations    Json?
   riskLevel      DocumentRiskLevel?
   errorMessage   String?
+  deletedAt      DateTime?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
   @@index([ownerId])
-  @@index([organisationId])
+  @@index([organisationId, deletedAt])
   @@map("document")
 }

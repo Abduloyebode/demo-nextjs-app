@@ -12,7 +12,11 @@ type WorkflowFormValues = {
   name: string;
   description: string;
   status: WorkflowStatus;
+  dueDate: string;
+  assigneeId: string;
 };
+
+export type WorkflowFormMember = { id: string; name: string; email: string };
 
 const fieldClass =
   "mt-1.5 w-full rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--ink)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--teal)] focus:ring-2 focus:ring-[var(--teal-soft)]";
@@ -24,6 +28,7 @@ export function WorkflowForm({
   action,
   onSuccess,
   onCancel,
+  members,
 }: {
   initialValues?: Partial<WorkflowFormValues>;
   submitLabel: string;
@@ -31,6 +36,7 @@ export function WorkflowForm({
   action: (formData: FormData) => Promise<WorkflowActionResult>;
   onSuccess: () => void;
   onCancel?: () => void;
+  members: WorkflowFormMember[];
 }) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -111,6 +117,40 @@ export function WorkflowForm({
             </option>
           ))}
         </select>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="dueDate" className="block text-sm font-medium text-[var(--ink-soft)]">
+            Due date
+          </label>
+          <input
+            id="dueDate"
+            name="dueDate"
+            type="date"
+            defaultValue={initialValues?.dueDate}
+            className={fieldClass}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="assigneeId" className="block text-sm font-medium text-[var(--ink-soft)]">
+            Assignee
+          </label>
+          <select
+            id="assigneeId"
+            name="assigneeId"
+            defaultValue={initialValues?.assigneeId ?? ""}
+            className={fieldClass}
+          >
+            <option value="">Unassigned</option>
+            {members.map((member) => (
+              <option key={member.id} value={member.id}>
+                {member.name || member.email}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

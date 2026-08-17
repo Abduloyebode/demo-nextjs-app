@@ -38,7 +38,11 @@ export function DocumentRow({ document }: { document: DocumentListItem }) {
   const [isDeleting, startDeleteTransition] = useTransition();
 
   function onDelete() {
-    if (!window.confirm(`Delete "${document.fileName}"? This can't be undone.`)) {
+    if (
+      !window.confirm(
+        `Delete "${document.fileName}"? You can restore it later from Recently deleted.`,
+      )
+    ) {
       return;
     }
     setDeleteError(null);
