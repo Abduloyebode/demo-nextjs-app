@@ -1,24 +1,34 @@
 import { prisma } from "@/lib/prisma";
-import type { WorkflowStatus } from "@prisma/client";
+import type { User, Workflow, WorkflowStatus } from "@prisma/client";
 
 export type WorkflowSort = "newest" | "oldest" | "name";
+
+export type WorkflowAssignee = Pick<User, "id" | "name" | "email">;
+
+export type WorkflowListItem = Workflow & { assignee: WorkflowAssignee | null };
 
 export type ListWorkflowsParams = {
   search?: string;
   status?: WorkflowStatus;
   sort?: WorkflowSort;
+  /** Scope the list to workflows assigned to this user id. */
+  assigneeId?: string;
+  /** false/undefined = active workflows only (default). true = trash view (soft-deleted only). */
+  deleted?: boolean;
 };
 
 export function listWorkflows(
   organisationId: string,
   params: ListWorkflowsParams,
-) {
-  const { search, status, sort = "newest" } = params;
+): Promise<WorkflowListItem[]> {
+  const { search, status, sort = "newest", assigneeId, deleted = false } = params;
 
   return prisma.workflow.findMany({
     where: {
       organisationId,
+      deletedAt: deleted ? { not: null } : null,
       ...(status ? { status } : {}),
+      ...(assigneeId ? { assigneeId } : {}),
       ...(search
         ? {
             OR: [
@@ -34,5 +44,8 @@ export function listWorkflows(
         : sort === "oldest"
           ? { createdAt: "asc" as const }
           : { createdAt: "desc" as const },
+    include: {
+      assignee: { select: { id: true, name: true, email: true } },
+    },
   });
 }

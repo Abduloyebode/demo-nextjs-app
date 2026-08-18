@@ -21,6 +21,13 @@ export const workflowSchema = z.object({
     .optional()
     .or(z.literal("")),
   status: z.enum(workflowStatusValues),
+  dueDate: z
+    .string()
+    .trim()
+    .refine((value) => !Number.isNaN(Date.parse(value)), "Enter a valid date")
+    .optional()
+    .or(z.literal("")),
+  assigneeId: z.string().trim().optional().or(z.literal("")),
 });
 
 export type WorkflowInput = z.infer<typeof workflowSchema>;

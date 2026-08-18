@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { createWorkflow } from "@/app/dashboard/actions";
-import { WorkflowForm } from "@/app/components/workflows/WorkflowForm";
+import { WorkflowForm, type WorkflowFormMember } from "@/app/components/workflows/WorkflowForm";
 
-export function WorkflowCreateForm() {
+export function WorkflowCreateForm({ members }: { members: WorkflowFormMember[] }) {
   const [isOpen, setIsOpen] = useState(false);
 
   if (!isOpen) {
@@ -29,6 +29,7 @@ export function WorkflowCreateForm() {
           action={createWorkflow}
           onSuccess={() => setIsOpen(false)}
           onCancel={() => setIsOpen(false)}
+          members={members}
         />
       </div>
     </div>

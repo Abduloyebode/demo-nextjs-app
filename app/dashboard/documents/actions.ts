@@ -5,11 +5,16 @@ import { prisma } from "@/lib/prisma";
 import { requireOrganisationMembership } from "@/lib/organisation";
 import { MAX_PDF_SIZE_BYTES } from "@/lib/document-validation";
 import {
+  deleteDocumentForOrg,
+  restoreDocumentForOrg,
+  type DocumentActionResult,
+} from "@/lib/document-admin";
+import {
   DOCUMENT_PROCESS_EVENT,
   inngest,
 } from "@/lib/inngest/client";
 
-export type DocumentActionResult = { error: string | null };
+export type { DocumentActionResult };
 
 const PDF_MAGIC_BYTES = Buffer.from("%PDF-");
 
@@ -78,16 +83,19 @@ export async function uploadDocument(
 }
 
 export async function deleteDocument(id: string): Promise<DocumentActionResult> {
-  const { organisationId } = await requireOrganisationMembership();
-
-  const result = await prisma.document.deleteMany({
-    where: { id, organisationId },
-  });
-
-  if (result.count === 0) {
-    return { error: "That document could not be found." };
+  const ctx = await requireOrganisationMembership();
+  const result = await deleteDocumentForOrg(ctx, id);
+  if (result.error === null) {
+    revalidatePath("/dashboard/documents");
   }
+  return result;
+}
 
-  revalidatePath("/dashboard/documents");
-  return { error: null };
+export async function restoreDocument(id: string): Promise<DocumentActionResult> {
+  const ctx = await requireOrganisationMembership();
+  const result = await restoreDocumentForOrg(ctx, id);
+  if (result.error === null) {
+    revalidatePath("/dashboard/documents");
+  }
+  return result;
 }
